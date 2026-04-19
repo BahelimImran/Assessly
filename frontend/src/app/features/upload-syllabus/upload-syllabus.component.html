@@ -1,0 +1,59 @@
+<div style="padding: 20px; max-width: 400px;">
+  <h2>Upload Syllabus PDF</h2>
+
+  <input 
+    type="file" 
+    (change)="onFileSelected($event)" 
+    accept="application/pdf"
+  />
+
+  <br /><br />
+
+  <button 
+    (click)="uploadFile()" 
+    [disabled]="!selectedFile || isUploading"
+    
+  >
+    {{ isUploading ? 'Uploading...' : 'Upload' }}
+  </button>
+
+  <p *ngIf="message">{{ message }}</p>
+
+    <hr />
+
+  <!-- QUESTION INPUT -->
+  <h3>Ask Question</h3>
+
+  <!-- [(ngModel)]="question" -->
+  <input
+    type="text"
+    [(ngModel)]="question"
+    placeholder="Enter your question"
+    
+    style="width: 100%; padding: 8px;"
+  />
+
+  <br /><br />
+
+  <!-- GET ANSWER BUTTON -->
+  <button
+    (click)="getAnswer()"
+    
+  >
+  <!-- [disabled]="!question" -->
+    {{ isQuerying ? 'Fetching...' : 'Get Answer' }}
+  </button>
+
+  <br /><br />
+
+  <!-- ANSWER FIELD -->
+   <!-- [(ngModel)]="answer" -->
+  <textarea
+    [(ngModel)]="answer"
+    placeholder="Answer will appear here"
+    
+    rows="6"
+    style="width: 100%; padding: 8px;"
+  ></textarea>
+
+</div>
