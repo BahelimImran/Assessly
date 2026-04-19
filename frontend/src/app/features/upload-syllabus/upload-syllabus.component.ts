@@ -38,7 +38,7 @@ export class UploadSyllabusComponent {
 
     this.isUploading = true;
 
-    this.http.post('http://localhost:8000/upload-and-ingest', formData)
+    this.http.post('http://localhost:8000/ingest', formData)
       .subscribe({
         next: (res: any) => {
           this.message = 'Upload + Ingestion successful!';
