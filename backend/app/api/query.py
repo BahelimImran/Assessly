@@ -13,5 +13,5 @@ def query(req: QueryRequest):
             "question": req.question,
             "answer": answer
         }
-    except Exception:
-        return {"answer": "Error processing query"}
+    except Exception as e:
+        return {"error":str(e)}

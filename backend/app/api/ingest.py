@@ -1,7 +1,7 @@
 from fastapi import APIRouter, UploadFile, File
 import os
 
-from app.services.rag_service import ingest_document
+from app.services.rag_service import ingest_pdf
 
 router = APIRouter()
 
@@ -17,7 +17,7 @@ async def upload_and_ingest(file: UploadFile = File(...)):
         with open(file_path, "wb") as f:
             f.write(await file.read())
 
-        result = ingest_document(file_path)
+        result = ingest_pdf(file_path)
 
         return {
             "message": "Upload + Ingestion successful",
