@@ -1,4 +1,4 @@
-from fastapi import APIRouter, UploadFile, File
+from fastapi import APIRouter, HTTPException, UploadFile, File
 import os
 
 from app.services.rag_service import ingest_pdf
@@ -26,4 +26,9 @@ async def upload_and_ingest(file: UploadFile = File(...)):
         }
 
     except Exception as e:
-        return {"error": str(e)}
+        print("Ingest error:", str(e))
+    
+        raise HTTPException(
+            status_code=500,
+            detail=f"Ingestion failed: {str(e)}"
+        )
