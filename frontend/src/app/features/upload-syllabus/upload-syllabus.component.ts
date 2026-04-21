@@ -7,15 +7,15 @@ import { FormsModule } from '@angular/forms';
   selector: 'app-upload-syllabus',
   standalone: true,
   imports: [CommonModule, FormsModule],
-  templateUrl: './upload-syllabus.component.html'
+  templateUrl: './upload-syllabus.component.html',
+  styleUrls: ['./upload-syllabus.component.css']
 })
 export class UploadSyllabusComponent {
 
   selectedFile: File | null = null;
   message = '';
   isUploading = false;
-  
-  // NEW
+
   question: string = '';
   answer: string = '';
   isIngested: boolean = false;
@@ -27,6 +27,7 @@ export class UploadSyllabusComponent {
     const input = event.target as HTMLInputElement;
     if (input.files && input.files.length > 0) {
       this.selectedFile = input.files[0];
+      this.message = `Selected: ${this.selectedFile.name}`;
     }
   }
 
@@ -37,31 +38,28 @@ export class UploadSyllabusComponent {
     formData.append('file', this.selectedFile);
 
     this.isUploading = true;
+    this.message = 'Processing document...';
 
     this.http.post('http://localhost:8000/ingest', formData)
       .subscribe({
-        next: (res: any) => {
-          this.message = 'Upload + Ingestion successful!';
+        next: () => {
+          this.message = '✅ Document indexed successfully';
           this.isUploading = false;
-           
-          // ENABLE QUESTION FIELD
           this.isIngested = true;
-          
           this.cd.detectChanges();
         },
-        error: (err) => {
-          this.message = 'Upload failed';
+        error: () => {
+          this.message = '❌ Upload failed';
           this.isUploading = false;
-          console.error(err);
+          this.cd.detectChanges();
         }
       });
   }
 
-    // 🔥 NEW FUNCTION
   getAnswer() {
-    // this.cd.detectChanges();
     if (!this.question) return;
 
+    this.answer = '';
     this.isQuerying = true;
 
     this.http.post('http://localhost:8000/query', {
@@ -72,10 +70,9 @@ export class UploadSyllabusComponent {
         this.isQuerying = false;
         this.cd.detectChanges();
       },
-      error: (err) => {
+      error: () => {
         this.answer = 'Error fetching answer';
         this.isQuerying = false;
-        console.error(err);
       }
     });
   }

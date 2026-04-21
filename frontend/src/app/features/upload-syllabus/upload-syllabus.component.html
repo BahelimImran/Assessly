@@ -1,59 +1,78 @@
-<div style="padding: 20px; max-width: 400px;">
-  <h2>Upload Syllabus PDF</h2>
+<div class="app-container">
 
-  <input 
-    type="file" 
-    (change)="onFileSelected($event)" 
-    accept="application/pdf"
-  />
+  <!-- SIDEBAR -->
+  <aside class="sidebar">
 
-  <br /><br />
 
-  <button 
-    (click)="uploadFile()" 
-    [disabled]="!selectedFile || isUploading"
-    
-  >
-    {{ isUploading ? 'Uploading...' : 'Upload' }}
-  </button>
+    <div class="upload-box">
+      <h3>📂 Add Document</h3>
 
-  <p *ngIf="message">{{ message }}</p>
+      <input type="file" (change)="onFileSelected($event)" accept="application/pdf" />
 
-    <hr />
+      <button 
+        (click)="uploadFile()" 
+        [disabled]="isUploading"
+      >
+        {{ isUploading ? 'Processing...' : 'Process Document' }}
+      </button>
 
-  <!-- QUESTION INPUT -->
-  <h3>Ask Question</h3>
+      <p class="status">{{ message }}</p>
+    </div>
 
-  <!-- [(ngModel)]="question" -->
-  <input
-    type="text"
-    [(ngModel)]="question"
-    placeholder="Enter your question"
-    
-    style="width: 100%; padding: 8px;"
-  />
+    <div class="tech-box">
+      <h4>⚡ Tech Stack</h4>
+      <ul>
+        <li>RAG Pipeline</li>
+        <li>ChromaDB</li>
+        <li>Sentence Transformers</li>
+        <li>FastAPI + Angular</li>
+      </ul>
+    </div>
+  </aside>
 
-  <br /><br />
+  <!-- MAIN CHAT -->
+  <main class="chat-container">
 
-  <!-- GET ANSWER BUTTON -->
-  <button
-    (click)="getAnswer()"
-    
-  >
-  <!-- [disabled]="!question" -->
-    {{ isQuerying ? 'Fetching...' : 'Get Answer' }}
-  </button>
+    <h2>🧠 Assessly AI</h2>
+    <p class="tagline">RAG Knowledge Assistant</p>
+    <!-- CHAT WINDOW -->
+    <div class="chat-window">
 
-  <br /><br />
+      <div *ngIf="!answer && !isQuerying" class="empty-state">
+        <h2>Ask anything from your documents</h2>
+        <p>Upload a file and start querying</p>
+      </div>
 
-  <!-- ANSWER FIELD -->
-   <!-- [(ngModel)]="answer" -->
-  <textarea
-    [(ngModel)]="answer"
-    placeholder="Answer will appear here"
-    
-    rows="6"
-    style="width: 100%; padding: 8px;"
-  ></textarea>
+      <div *ngIf="question" class="message user">
+        {{ question }}
+      </div>
+
+      <div *ngIf="isQuerying" class="message ai">
+        ⏳ Thinking...
+      </div>
+
+      <div *ngIf="answer" class="message ai">
+        {{ answer }}
+      </div>
+
+    </div>
+
+    <!-- INPUT BOX -->
+    <div class="input-box">
+      <input 
+        [(ngModel)]="question"
+        [disabled]="!isIngested || isQuerying"
+        placeholder="Ask a question about your document..."
+      />
+
+      <button 
+        (click)="getAnswer()"
+        [disabled]="!isIngested || isQuerying"
+      >
+        Ask
+      </button>
+    </div>
+
+  </main>
 
 </div>
