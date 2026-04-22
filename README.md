@@ -104,7 +104,7 @@ Context Builder
    ↓
 Prompt Template
    ↓
-LLM (Mistral / LLaMA via Ollama)
+LLM (Mistral via Ollama)
    ↓
 Final Answer
 ```
