@@ -22,9 +22,7 @@ def is_good_parse(elements):
     return True
 
 def parse_pdf(file_path: str):
-    # """
-    # Parse pdf into structure elements (text, tables, images, etc.)
-    # """
+
     # Parse pdf into structure elements (text, tables, images, etc.)
 
     # First try fast no OCR
@@ -39,11 +37,7 @@ def parse_pdf(file_path: str):
 
     # check quality
     if not is_good_parse(elements):
-        print("Falling back to OCR (hi_res)")
+        print("Falling back to other strategy")
 
-        elements = partition_pdf(
-            filename = file_path,
-            strategy = "hi_res"
-        )
 
     return elements

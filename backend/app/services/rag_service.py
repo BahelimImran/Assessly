@@ -160,7 +160,7 @@ def generate_answer(question: str):
     chunks = query_rag(question)
 
     if not chunks:
-        return "No relevant content found."
+        return "No relevant content found." #Todo - error capture for phase
 
     context = build_context(chunks)
     prompt = create_prompt(question, context)
