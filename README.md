@@ -182,55 +182,9 @@ def parse_pdf(file_path: str):
 
 ## 🏗️ Project Structure (Monorepo)
 
-assessly/
-│
-├── backend/
-│   ├── app/
-│   │   ├── api/                  # FastAPI routes (ingest, query)
-│   │   │   ├── ingest.py
-│   │   │   └── query.py
-│   │   │
-│   │   ├── services/             # Core RAG pipeline logic
-│   │   │   ├── chunking/
-│   │   │   │   ├── chunk_service.py
-│   │   │   │   ├── chunk_enricher.py
-│   │   │   │   ├── chunk_validator.py
-│   │   │   │   └── section_builder.py
-│   │   │   │
-│   │   │   ├── pdf_parser.py
-│   │   │   ├── element_processor.py
-│   │   │   └── rag_service.py
-│   │   │
-│   │   ├── db/                  # Vector DB (Chroma) integration
-│   │   ├── core/                # Configs / shared logic
-│   │   ├── models/              # Pydantic schemas
-│   │   └── main.py              # FastAPI entrypoint
-│   │
-│   ├── chromadb/                # Persistent vector storage
-│   ├── uploads/                 # Uploaded PDFs
-│   ├── requirements.txt
-│   └── Dockerfile
-│
-├── frontend/
-│   ├── src/
-│   │   ├── app/
-│   │   │   ├── features/
-│   │   │   │   └── upload-syllabus/   # Core UI feature (PDF upload + query)
-│   │   │   │
-│   │   │   ├── app.component.ts
-│   │   │   ├── app.routes.ts
-│   │   │   └── app.config.ts
-│   │   │
-│   │   ├── environments/        # API config
-│   │   ├── index.html
-│   │   └── main.ts
-│   │
-│   ├── angular.json
-│   ├── package.json
-│   └── Dockerfile
-│
-├── docker-compose.yml
-└── README.md
+<p align="center">
+  <img src="Project-Structure-Assessly.png" width="800"/>
+</p>
 
 ---
 
