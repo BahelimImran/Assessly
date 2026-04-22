@@ -2,17 +2,15 @@
 
   <!-- SIDEBAR -->
   <aside class="sidebar">
-
+    <h2>🧠 Assessly AI</h2>
+    <p class="tagline">RAG Knowledge Assistant</p>
 
     <div class="upload-box">
       <h3>📂 Add Document</h3>
 
       <input type="file" (change)="onFileSelected($event)" accept="application/pdf" />
 
-      <button 
-        (click)="uploadFile()" 
-        [disabled]="isUploading"
-      >
+      <button (click)="uploadFile()" [disabled]="isUploading">
         {{ isUploading ? 'Processing...' : 'Process Document' }}
       </button>
 
@@ -20,59 +18,80 @@
     </div>
 
     <div class="tech-box">
-      <h4>⚡ Tech Stack</h4>
-      <ul>
-        <li>RAG Pipeline</li>
-        <li>ChromaDB</li>
-        <li>Sentence Transformers</li>
-        <li>FastAPI + Angular</li>
-      </ul>
+      
+      <div class="info-panel rag-panel">
+
+        <h3>🧠 RAG Pipeline</h3>
+
+        <!-- COMPONENT DETAILS -->
+        <div class="info-section">
+          <h4>⚙️ Components</h4>
+
+          <div *ngFor="let item of ragArchitecture.components" class="tech-item">
+            <strong>{{ item.title }}</strong>
+            <p>{{ item.value }}</p>
+          </div>
+        </div>
+
+        <!-- BADGE -->
+        <div class="tech-item">
+          <strong>🚀 Design Philosophy</strong>
+        <p class="badge">
+          Built for scalable semantic retrieval, low-latency inference, and explainable AI responses.
+        </p>
+        </div>
+        <!-- <p class="badge">
+          🚀 Built for scalable semantic retrieval, low-latency inference, and explainable AI responses.
+        </p> -->
+
+      </div>
+
     </div>
+
   </aside>
 
   <!-- MAIN CHAT -->
   <main class="chat-container">
 
-    <h2>🧠 Assessly AI</h2>
-    <p class="tagline">RAG Knowledge Assistant</p>
     <!-- CHAT WINDOW -->
     <div class="chat-window">
 
-      <div *ngIf="!answer && !isQuerying" class="empty-state">
+      <div *ngIf="!isQuerying" class="empty-state">
         <h2>Ask anything from your documents</h2>
         <p>Upload a file and start querying</p>
       </div>
-
-      <div *ngIf="question" class="message user">
-        {{ question }}
+      <div *ngFor="let qa of listOfQA">
+        <div *ngIf="qa.question" class="message user question">
+          {{ qa.question }}
+        </div>
+      
+        <!-- <p>{{qa.isQuerying}}</p> -->
+        <span *ngIf="qa.isQuerying"  class="message ai answer">
+          ⏳ Thinking...
+        </span>
+      
+        <div *ngIf="qa.answer"  class="message ai answer">
+          {{ qa.answer }}
+        </div>
       </div>
 
-      <div *ngIf="isQuerying" class="message ai">
-        ⏳ Thinking...
-      </div>
-
-      <div *ngIf="answer" class="message ai">
-        {{ answer }}
-      </div>
 
     </div>
 
     <!-- INPUT BOX -->
     <div class="input-box">
-      <input 
-        [(ngModel)]="question"
-        [disabled]="!isIngested || isQuerying"
-        placeholder="Ask a question about your document..."
-      />
+      <input [(ngModel)]="question" name="question" [disabled]="askDisable"
+        style="width: 100%;height: 50px;"
+        placeholder="Ask a question about your document..." />
 
-      <button 
-        (click)="getAnswer()"
-        [disabled]="!isIngested || isQuerying"
-      >
+      <button (click)="getAnswer()" [disabled]="askDisable">
         Ask
       </button>
     </div>
-
+    <div class="footer empty-state-footer">
+      <p>Built by Imran Bahelim • Lead Fullstack + AI Engineer</p>
+    </div>
   </main>
+
 
 </div>
