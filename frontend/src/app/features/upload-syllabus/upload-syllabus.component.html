@@ -7,9 +7,10 @@
 
     <div class="upload-box">
       <h3>📂 Add Document</h3>
+      <h4>Best results with text-based PDFs.<br>Scanned files may not work accurately.</h4>
 
       <input type="file" (change)="onFileSelected($event)" accept="application/pdf" />
-
+      
       <button (click)="uploadFile()" [disabled]="isUploading">
         {{ isUploading ? 'Processing...' : 'Process Document' }}
       </button>

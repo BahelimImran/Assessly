@@ -2,6 +2,7 @@ import { ChangeDetectorRef, Component, OnInit } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { environment } from '../../../environments/environment';
 
 interface QA  {
   question : string,
@@ -17,6 +18,8 @@ interface QA  {
 })
 
 export class UploadSyllabusComponent implements OnInit{
+
+  apiBaseUrl = environment.apiBaseUrl;
 
   selectedFile: File | null = null;
   message = '';
@@ -144,7 +147,7 @@ Context ranking tuned for relevance and minimal hallucination.`
     this.isUploading = true;
     this.message = 'Processing document...';
 
-    this.http.post('http://localhost:8000/ingest', formData)
+    this.http.post(`${this.apiBaseUrl}/ingest`, formData)
       .subscribe({
         next: () => {
           this.message = '✅ Document indexed successfully';
@@ -173,7 +176,7 @@ Context ranking tuned for relevance and minimal hallucination.`
       });
 
 
-    this.http.post('http://localhost:8000/query', {
+    this.http.post(`${this.apiBaseUrl}/query`, {
       question: this.question
     }).subscribe({
       next: (res: any) => {

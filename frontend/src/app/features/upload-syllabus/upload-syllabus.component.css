@@ -114,8 +114,8 @@ body {
   display: flex;
   padding: 15px;
   background: #40414f;
-  margin-left: 25%;
-  margin-right: 25%;
+  margin-left: 10%;
+  margin-right: 10%;
 }
 
 .input-box input {
