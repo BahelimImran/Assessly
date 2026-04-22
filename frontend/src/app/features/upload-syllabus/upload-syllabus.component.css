@@ -1,0 +1,260 @@
+body {
+  font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.app-container {
+  display: flex;
+  height: 100vh;
+}
+
+/* SIDEBAR */
+.sidebar {
+  width: 300px;
+  background: #202123;
+  color: white;
+  padding: 20px;
+}
+
+.sidebar h2 {
+  margin: 0;
+}
+
+.tagline {
+  margin-top: 0px;
+  text-align: center;
+  font-size: 12px;
+  color: #aaa;
+}
+
+.upload-box {
+  margin-top: 20px;
+}
+
+.upload-box input {
+  width: 100%;
+  margin-top: 10px;
+}
+
+.upload-box button {
+  width: 100%;
+  margin-top: 10px;
+  padding: 10px;
+  background: #10a37f;
+  border: none;
+  color: white;
+  cursor: pointer;
+}
+
+.status {
+  font-size: 12px;
+  margin-top: 10px;
+}
+
+.tech-box {
+  /* margin-top: 30px; */
+  font-size: 12px;
+}
+
+/* CHAT */
+.chat-container {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  background: #343541;
+  color: white;
+}
+
+.chat-window {
+  flex: 1;
+  padding: 20px;
+  overflow-y: auto;
+}
+
+.message {
+  max-width: 50%;
+  padding: 12px;
+  border-radius: 8px;
+  margin-bottom: 10px;
+  
+}
+.question {
+  margin-left: 30%;
+  margin-right: 20%;
+}
+.answer {
+  margin-left: 10%;
+  margin-right: 40%;
+}
+
+.user {
+  background: #10a37f;
+  align-self: flex-end;
+}
+
+.ai {
+  background: #444654;
+  align-self: flex-start;
+}
+
+.empty-state {
+  text-align: center;
+  /* margin-top: 100px; */
+  color: #aaa;
+  margin-right: 5%;
+}
+.empty-state-footer {
+  text-align: center;
+  
+}
+
+/* INPUT */
+.input-box {
+  display: flex;
+  padding: 15px;
+  background: #40414f;
+  margin-left: 25%;
+  margin-right: 25%;
+}
+
+.input-box input {
+  flex: 1;
+  padding: 10px;
+  border: none;
+  border-radius: 6px;
+}
+
+.input-box button {
+  margin-left: 10px;
+  padding: 10px 16px;
+  background: #10a37f;
+  border: none;
+  color: white;
+  cursor: pointer;
+}
+
+.tech-item {
+  margin-bottom: 12px;
+}
+
+.tech-item strong {
+  color: #10a37f;
+  font-size: 13px;
+}
+
+.tech-item p {
+  font-size: 12px;
+  color: #ccc;
+  margin: 2px 0 0;
+}
+
+.info-toggle {
+  margin-top: 20px;
+  padding: 10px;
+  background: #2a2b32;
+  border-radius: 8px;
+  cursor: pointer;
+  display: flex;
+  justify-content: space-between;
+  font-size: 13px;
+}
+
+.info-toggle:hover {
+  background: #343541;
+}
+
+.info-panel {
+  margin-top: 10px;
+  padding: 15px;
+  background: #1e1f26;
+  border-radius: 10px;
+  font-size: 12px;
+  color: #ccc;
+  border: 1px solid #333;
+}
+
+.info-panel h3 {
+  color: #10a37f;
+  margin-bottom: 5px;
+}
+
+.info-panel .desc {
+  font-size: 12px;
+  margin-bottom: 10px;
+}
+
+.info-section {
+  margin-top: 10px;
+}
+
+.info-section h4 {
+  font-size: 12px;
+  color: #fff;
+  margin-bottom: 5px;
+}
+
+.info-section ul {
+  padding-left: 15px;
+}
+
+.info-section li {
+  margin-bottom: 4px;
+}
+.badge {
+  margin-top: 10px;
+  padding: 6px;
+  background: #10a37f22;
+  border-left: 3px solid #10a37f;
+  font-size: 11px;
+}
+
+.rag-panel {
+  margin-top: 10px;
+}
+
+/* PIPELINE FLOW */
+.pipeline {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 10px 0;
+}
+
+.step {
+  display: flex;
+  align-items: center;
+  background: #2a2b32;
+  padding: 6px 10px;
+  border-radius: 6px;
+  font-size: 12px;
+}
+
+.step-index {
+  background: #10a37f;
+  color: white;
+  font-size: 10px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  margin-right: 8px;
+}
+
+.step-text {
+  color: #ddd;
+}
+
+/* COMPONENTS */
+.tech-item {
+  margin-bottom: 10px;
+}
+
+.tech-item strong {
+  color: #10a37f;
+  font-size: 12px;
+}
+
+.tech-item p {
+  font-size: 11px;
+  color: #ccc;
+  margin: 2px 0 0;
+}

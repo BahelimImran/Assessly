@@ -1,4 +1,4 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException
 from app.models.schema import QueryRequest
 from app.services.rag_service import generate_answer
 
@@ -14,4 +14,9 @@ def query(req: QueryRequest):
             "answer": answer
         }
     except Exception as e:
-        return {"error":str(e)}
+        print("Query error:", str(e))
+        raise HTTPException(
+            status_code=500,
+            detail=f"Query failed: {str(e)}"
+        )
+

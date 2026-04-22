@@ -6,9 +6,9 @@ def process_elements(elements, source_file):
     metadatas = []
 
     for el in elements:
-        text = getattr(el, "text", "") 
+        text = getattr(el, "text", "") # Todo
 
-        if not text or not text.strip(): 
+        if not text or not text.strip(): # Todo
             continue
 
         category = el.category
@@ -16,7 +16,7 @@ def process_elements(elements, source_file):
         
         metadata = {
             "source" : source_file,
-            "page" : getattr(el.metadata, "page_number", None), 
+            "page" : getattr(el.metadata, "page_number", None), # Todo
             "type" : category
         }
 

@@ -5,20 +5,67 @@ from app.core.config import *
 from app.db.chroma_client import collection
 
 from app.services.pdf_parser import parse_pdf
+from app.services.chunking.chunk_service import process_document
 from app.services.element_processor import process_elements
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 import numpy as np
 
 
+# ---------------- INGEST ----------------
+def ingest_pdf(file_path):
+    print("\n ingest_pdf start\n")
+    
+    print("\n parse_pdf start\n")
+    # parse pdf
+    elements = parse_pdf(file_path) 
+
+
+    all_chunks = process_document(elements, file_path)
+    print(f"allchunk:{all_chunks}")
+
+
+    final_docs = []
+    final_metas = []
+
+    for content in all_chunks: # Todo
+
+        temp_content = content.content
+        temp_metadata = getattr(content, "metadata", {}) #Get a named attribute from an object; getattr(x, 'y') is equivalent to x.y.
+        final_docs.append(temp_content)
+        final_metas.append(temp_metadata)
+    
+    embeddings = []
+    print("\nEmbedding start\n")
+    for text in final_docs:
+        emb = get_embedding(text)
+
+        if emb:
+            embeddings.append(emb)
+        else:
+            embeddings.append([0.0] * 786) # fallback # Todo
+    print("\nEmbedding end\n")
+    print(f"\nEmbedding Total:{len(embeddings)}\n")
+    # Store in Chroma
+    ids = [f"{file_path}_{i}" for i in range(len(final_docs))]
+    collection.add(
+        documents = final_docs,
+        metadatas = final_metas,
+        embeddings = embeddings,
+        ids=ids # Todo
+    )
+    print("\n ingest_pdf end\n")
+    return {"chunks ": len(final_docs)}
 
 # ---------------- EMBEDDING ----------------
 def get_embedding(text: str) -> List[float]:
+    
     response = requests.post(
         f"{OLLAMA_BASE_URL}/api/embeddings",
         json={"model": EMBED_MODEL, "prompt": text},
         timeout=120
     )
     data = response.json()
+    
     return data.get("embedding") or data.get("embeddings", [[]])[0]
 
 
@@ -26,53 +73,6 @@ def cosine_similarity(emb1: List[float], emb2: List[float]) -> float:
     a = np.array(emb1)
     b = np.array(emb2)
     return np.dot(a, b) / (np.linalg.norm(a) * np.linalg.norm(b))
-
-
-# ---------------- INGEST ----------------
-
-def ingest_pdf(file_path):
-    # parse pdf
-    elements = parse_pdf(file_path) 
-
-    # process elements
-    docs, metas = process_elements(elements, file_path)
-
-    # chunking only for large text
-    splitter = RecursiveCharacterTextSplitter(
-        chunk_size = 500,
-        chunk_overlap = 50
-    )
-
-    final_docs = []
-    final_metas = []
-
-    for doc, meta in zip(docs, metas): 
-        chunks = splitter.split_text(doc)
-
-        for chunk in chunks:
-            final_docs.append(chunk)
-            final_metas.append(meta)
-    
-    # Embeddings ??
-    embeddings = []
-    for text in final_docs:
-        emb = get_embedding(text)
-
-        if emb:
-            embeddings.append(emb)
-        else:
-            embeddings.append([0.0] * 786) # fallback 
-
-    # Store in Chroma
-    ids = [f"{file_path}_{i}" for i in range(len(final_docs))]
-    collection.add(
-        documents = final_docs,
-        metadatas = final_metas,
-        embeddings = embeddings,
-        ids=ids 
-    )
-    return {"chunks ": len(final_docs)}
-
 
 # ---------------- RETRIEVE ----------------
 def get_relevant_chunks(question: str):
@@ -87,13 +87,16 @@ def get_relevant_chunks(question: str):
     return results["documents"][0]
 
 def query_rag(query):
+    print(f"\n RETRIEVE start {query}\n")
     emb = get_embedding(query)
 
+    print(f"\n collection.query start\n")
     results = collection.query(
         query_embeddings=[emb],
         n_results = 5,
         include=["documents", "metadatas", "embeddings"]
     )
+    print(f"\n collection.query end\n")
     docs = results["documents"][0]
     metas = results["metadatas"][0]
     doc_embeddings = results["embeddings"][0]
@@ -115,6 +118,7 @@ def query_rag(query):
             "similarity": round(similarity, 4),
             "passes_similarity_test": passes_test
         })
+    print("\n RETRIEVE end\n")
     final_result = []
     for content in response:
         final_result.append(content["content"])

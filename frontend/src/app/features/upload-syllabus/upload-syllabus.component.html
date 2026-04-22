@@ -1,59 +1,97 @@
-<div style="padding: 20px; max-width: 400px;">
-  <h2>Upload Syllabus PDF</h2>
+<div class="app-container">
 
-  <input 
-    type="file" 
-    (change)="onFileSelected($event)" 
-    accept="application/pdf"
-  />
+  <!-- SIDEBAR -->
+  <aside class="sidebar">
+    <h2>🧠 Assessly AI</h2>
+    <p class="tagline">RAG Knowledge Assistant</p>
 
-  <br /><br />
+    <div class="upload-box">
+      <h3>📂 Add Document</h3>
 
-  <button 
-    (click)="uploadFile()" 
-    [disabled]="!selectedFile || isUploading"
-    
-  >
-    {{ isUploading ? 'Uploading...' : 'Upload' }}
-  </button>
+      <input type="file" (change)="onFileSelected($event)" accept="application/pdf" />
 
-  <p *ngIf="message">{{ message }}</p>
+      <button (click)="uploadFile()" [disabled]="isUploading">
+        {{ isUploading ? 'Processing...' : 'Process Document' }}
+      </button>
 
-    <hr />
+      <p class="status">{{ message }}</p>
+    </div>
 
-  <!-- QUESTION INPUT -->
-  <h3>Ask Question</h3>
+    <div class="tech-box">
+      
+      <div class="info-panel rag-panel">
 
-  <!-- [(ngModel)]="question" -->
-  <input
-    type="text"
-    [(ngModel)]="question"
-    placeholder="Enter your question"
-    
-    style="width: 100%; padding: 8px;"
-  />
+        <h3>🧠 RAG Pipeline</h3>
 
-  <br /><br />
+        <!-- COMPONENT DETAILS -->
+        <div class="info-section">
+          <h4>⚙️ Components</h4>
 
-  <!-- GET ANSWER BUTTON -->
-  <button
-    (click)="getAnswer()"
-    
-  >
-  <!-- [disabled]="!question" -->
-    {{ isQuerying ? 'Fetching...' : 'Get Answer' }}
-  </button>
+          <div *ngFor="let item of ragArchitecture.components" class="tech-item">
+            <strong>{{ item.title }}</strong>
+            <p>{{ item.value }}</p>
+          </div>
+        </div>
 
-  <br /><br />
+        <!-- BADGE -->
+        <div class="tech-item">
+          <strong>🚀 Design Philosophy</strong>
+        <p class="badge">
+          Built for scalable semantic retrieval, low-latency inference, and explainable AI responses.
+        </p>
+        </div>
+        <!-- <p class="badge">
+          🚀 Built for scalable semantic retrieval, low-latency inference, and explainable AI responses.
+        </p> -->
 
-  <!-- ANSWER FIELD -->
-   <!-- [(ngModel)]="answer" -->
-  <textarea
-    [(ngModel)]="answer"
-    placeholder="Answer will appear here"
-    
-    rows="6"
-    style="width: 100%; padding: 8px;"
-  ></textarea>
+      </div>
+
+    </div>
+
+  </aside>
+
+  <!-- MAIN CHAT -->
+  <main class="chat-container">
+
+    <!-- CHAT WINDOW -->
+    <div class="chat-window">
+
+      <div *ngIf="!isQuerying" class="empty-state">
+        <h2>Ask anything from your documents</h2>
+        <p>Upload a file and start querying</p>
+      </div>
+      <div *ngFor="let qa of listOfQA">
+        <div *ngIf="qa.question" class="message user question">
+          {{ qa.question }}
+        </div>
+      
+        <!-- <p>{{qa.isQuerying}}</p> -->
+        <span *ngIf="qa.isQuerying"  class="message ai answer">
+          ⏳ Thinking...
+        </span>
+      
+        <div *ngIf="qa.answer"  class="message ai answer">
+          {{ qa.answer }}
+        </div>
+      </div>
+
+
+    </div>
+
+    <!-- INPUT BOX -->
+    <div class="input-box">
+      <input [(ngModel)]="question" name="question" [disabled]="askDisable"
+        style="width: 100%;height: 50px;"
+        placeholder="Ask a question about your document..." />
+
+      <button (click)="getAnswer()" [disabled]="askDisable">
+        Ask
+      </button>
+    </div>
+    <div class="footer empty-state-footer">
+      <p>Built by Imran Bahelim • Lead Fullstack + AI Engineer</p>
+    </div>
+  </main>
+
 
 </div>

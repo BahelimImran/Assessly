@@ -30,8 +30,11 @@ def parse_pdf(file_path: str):
     # First try fast no OCR
     elements = partition_pdf(
         filename=file_path,
-        # strategy="hi_res", #Important for layout detection
-        strategy = "fast"
+        strategy="hi_res", #Important for layout detection
+        infer_table_structure=True,
+        include_page_breaks=True,
+        chunking_strategy=None, 
+
     )
 
     # check quality

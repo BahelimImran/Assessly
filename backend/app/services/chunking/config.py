@@ -1,0 +1,7 @@
+CHUNK_SIZE = 600
+CHUNK_OVERLAP = 100
+
+SEPARATORS = ["\n\n", "\n", ". ", " "]
+
+MIN_CHUNK_SIZE = 100
+MAX_CHUNK_SIZE = 1000
