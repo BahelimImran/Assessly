@@ -2,7 +2,6 @@ from unstructured.partition.pdf import partition_pdf
 import re
 
 def is_good_parse(elements):
-
     if not elements:
         return False
     

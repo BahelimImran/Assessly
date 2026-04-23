@@ -258,3 +258,20 @@ body {
   color: #ccc;
   margin: 2px 0 0;
 }
+.upload-btn-white {
+  display: inline-block;
+  padding: 10px 18px;
+  background: #ffffff;
+  color: #333;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  cursor: pointer;
+  font-weight: 500;
+  transition: all 0.3s ease;
+}
+
+.upload-btn-white:hover {
+  border-color: #4CAF50;
+  color: #4CAF50;
+  box-shadow: 0 4px 10px rgba(0,0,0,0.08);
+}

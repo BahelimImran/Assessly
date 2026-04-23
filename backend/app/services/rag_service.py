@@ -13,15 +13,16 @@ import numpy as np
 
 # ---------------- INGEST ----------------
 def ingest_pdf(file_path):
-    print("\n ingest_pdf start\n")
+    print("\n\n\n 📥 Ingesting document...")
+    print(f"\n ⚙️  [File: {file_path}]")
     
-    print("\n parse_pdf start\n")
+    print("\n\n\n\n\n 📄 Parsing document structure...")
+    print(f"\n ⚙️  [Hi-res parsing + layout detection]")
     # parse pdf
     elements = parse_pdf(file_path) 
 
 
     all_chunks = process_document(elements, file_path)
-    print(f"allchunk:{all_chunks}")
 
 
     final_docs = []
@@ -35,7 +36,8 @@ def ingest_pdf(file_path):
         final_metas.append(temp_metadata)
     
     embeddings = []
-    print("\nEmbedding start\n")
+    print("\n\n\n\n\n 🧠 Generating embeddings...")
+    print(f"\n ⚙️  [Embedding model: nomic-embed-text]")
     for text in final_docs:
         emb = get_embedding(text)
 
@@ -43,8 +45,8 @@ def ingest_pdf(file_path):
             embeddings.append(emb)
         else:
             embeddings.append([0.0] * 786) # fallback # Todo
-    print("\nEmbedding end\n")
-    print(f"\nEmbedding Total:{len(embeddings)}\n")
+    print("\n\n\n\n\n 📦 Storing in vector database...")
+    print(f"\n ⚙️  [ChromaDB collection updated]")	
     # Store in Chroma
     ids = [f"{file_path}_{i}" for i in range(len(final_docs))]
     collection.add(
@@ -53,12 +55,13 @@ def ingest_pdf(file_path):
         embeddings = embeddings,
         ids=ids # Todo
     )
-    print("\n ingest_pdf end\n")
+    print("\n\n\n\n\n ✅ Ingestion complete")
+    print(f"\n ⚙️  [Total ingested chunks: {len(all_chunks)} | Status: Success]\n\n\n")	
+    print("=================================================================================")
     return {"chunks ": len(final_docs)}
 
 # ---------------- EMBEDDING ----------------
 def get_embedding(text: str) -> List[float]:
-    
     response = requests.post(
         f"{OLLAMA_BASE_URL}/api/embeddings",
         json={"model": EMBED_MODEL, "prompt": text},
@@ -70,13 +73,13 @@ def get_embedding(text: str) -> List[float]:
 
 
 def cosine_similarity(emb1: List[float], emb2: List[float]) -> float:
+    
     a = np.array(emb1)
     b = np.array(emb2)
     return np.dot(a, b) / (np.linalg.norm(a) * np.linalg.norm(b))
 
 # ---------------- RETRIEVE ----------------
 def get_relevant_chunks(question: str):
-    
     emb = get_embedding(question)
 
     results = collection.query(
@@ -87,16 +90,17 @@ def get_relevant_chunks(question: str):
     return results["documents"][0]
 
 def query_rag(query):
-    print(f"\n RETRIEVE start {query}\n")
+    print("\n\n\n\n\n 📚 Searching policy documents...")
+    print(f"\n ⚙️  [Generating query embedding...]")
     emb = get_embedding(query)
 
-    print(f"\n collection.query start\n")
+    print("\n\n\n\n\n 🔍 Finding relevant sections...")
+    print(f"\n ⚙️  [Querying vector DB + cosine similarity]")
     results = collection.query(
         query_embeddings=[emb],
         n_results = 5,
         include=["documents", "metadatas", "embeddings"]
     )
-    print(f"\n collection.query end\n")
     docs = results["documents"][0]
     metas = results["metadatas"][0]
     doc_embeddings = results["embeddings"][0]
@@ -109,6 +113,7 @@ def query_rag(query):
     the loop stops when the shortest list runs out
     """
     for doc, meta, doc_emb in zip(docs, metas, doc_embeddings):
+        
         similarity = cosine_similarity(emb, doc_emb)
         passes_test = similarity > 0.8  # Threshold for "passes test"
         response.append({
@@ -118,7 +123,8 @@ def query_rag(query):
             "similarity": round(similarity, 4),
             "passes_similarity_test": passes_test
         })
-    print("\n RETRIEVE end\n")
+    print("\n\n\n\n\n 📄 Found 5 relevant chunks")
+    print(f"\n ⚙️  [Top-k retrieval complete]")
     final_result = []
     for content in response:
         final_result.append(content["content"])
@@ -147,21 +153,31 @@ Question:
 
 # ---------------- LLM ----------------
 def call_llm(prompt: str):
+    print("\n\n\n\n\n ⏳ Waiting for response...")
+    print(f"\n ⚙️  [LLM inference in progress]")
     response = requests.post(
         f"{OLLAMA_BASE_URL}/api/generate",
         json={"model": LLM_MODEL, "prompt": prompt, "stream": False},
         timeout=120
     )
+    print("\n\n\n\n\n ✅ Answer ready")
+    print(f"\n ⚙️  [Response received]\n\n\n\n")
+    print("=================================================================================")
     return response.json().get("response", "")
 
 
 # ---------------- MAIN PIPELINE ----------------
 def generate_answer(question: str):
+    print("\n\n\n 🧠 Understanding your question...")
+    print(f"\n ⚙️  [Query received: {question}]\n")
+
     chunks = query_rag(question)
 
     if not chunks:
         return "No relevant content found." #Todo - error capture for phase
 
+    print("\n\n\n\n\n ✍️  Generating structured answer...")
+    print(f"\n ⚙️  [Prompt constructed → Sending to LLM]")
     context = build_context(chunks)
     prompt = create_prompt(question, context)
 

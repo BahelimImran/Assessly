@@ -26,7 +26,6 @@ async def upload_and_ingest(file: UploadFile = File(...)):
         }
 
     except Exception as e:
-        print("Ingest error:", str(e))
     
         raise HTTPException(
             status_code=500,

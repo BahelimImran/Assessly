@@ -282,15 +282,6 @@ Assessly aims to become a **next-generation AI knowledge platform** that:
 * Converts documents into intelligent systems
 * Enables natural language querying
 * Delivers accurate, explainable answers
-* Scales into a full SaaS knowledge solution
-
----
-
-## ⚠️ License
-
-This project is licensed under the MIT License.
-
-> Commercial usage is allowed with attribution.
 
 ---
 

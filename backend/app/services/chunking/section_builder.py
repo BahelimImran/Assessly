@@ -1,5 +1,6 @@
 def build_sections(elements):
-
+    print("\n\n\n\n\n ✂️  Splitting into semantic sections...")
+    print(f"\n ⚙️  [Section builder initialized]")
     sections = []
     current_section = {
         "title": "Unknown",

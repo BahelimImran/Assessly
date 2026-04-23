@@ -6,11 +6,12 @@
     <p class="tagline">RAG Knowledge Assistant</p>
 
     <div class="upload-box">
-      <h3>📂 Add Document</h3>
-      <h4>Best results with text-based PDFs.<br>Scanned files may not work accurately.</h4>
+      <h4 style="color: #10a37f;display: flex;justify-content: center;">Best results with text-based PDFs.<br>Scanned files may not work accurately.</h4>
 
-      <input type="file" (change)="onFileSelected($event)" accept="application/pdf" />
-      
+      <label class="upload-btn-white">
+        📂 Upload PDF
+        <input type="file" accept="application/pdf" (change)="onFileSelected($event)" hidden>
+      </label>
       <button (click)="uploadFile()" [disabled]="isUploading">
         {{ isUploading ? 'Processing...' : 'Process Document' }}
       </button>
