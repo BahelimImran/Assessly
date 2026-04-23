@@ -30,11 +30,17 @@ def chunk_section(section, file_name):
     return chunks
 
 def process_document(elements, file_name):
+    print("\n\n\n\n\n 🧠 Understanding document layout...")
+    print(f"\n ⚙️  [Analyzing headings, sections, tables]")
 
+    
     sections = build_sections(elements)
+    print("\n\n\n\n\n 🧩 Chunking content...")
+    print(f"\n ⚙️  [Chunk size: 500 | Overlap: 100]")
 
     all_chunks = []
-
+    print("\n\n\n\n\n 🔍 Enriching & validating chunks...")
+    print(f"\n ⚙️  [Metadata tagging + quality checks]")	
     for section in sections:
         section_chunks = chunk_section(section, file_name)
 

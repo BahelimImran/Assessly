@@ -1,4 +1,4 @@
-CHUNK_SIZE = 600
+CHUNK_SIZE = 500
 CHUNK_OVERLAP = 100
 
 SEPARATORS = ["\n\n", "\n", ". ", " "]
