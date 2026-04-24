@@ -23,6 +23,7 @@ export class UploadSyllabusComponent implements OnInit{
 
   selectedFile: File | null = null;
   message = '';
+  pickedFile : string ='';
   isUploading = false;
 
   question: string = '';
@@ -111,7 +112,7 @@ Context ranking tuned for relevance and minimal hallucination.`
     },
     {
       title: '🤖 LLM (Generation)',
-      value: 'Ollama (Mistral / LLaMA) for grounded answers'
+      value: 'Ollama (Mistral) for grounded answers'
     },
     {
       title: '🧩 Orchestration',
@@ -135,7 +136,7 @@ Context ranking tuned for relevance and minimal hallucination.`
     const input = event.target as HTMLInputElement;
     if (input.files && input.files.length > 0) {
       this.selectedFile = input.files[0];
-      this.message = `Selected: ${this.selectedFile.name}`;
+      this.pickedFile = `Selected: ${this.selectedFile.name}`;
     }
   }
 

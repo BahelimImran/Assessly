@@ -6,34 +6,49 @@
     <p class="tagline">RAG Knowledge Assistant</p>
 
     <div class="upload-box">
-      <h4 style="color: #10a37f;display: flex;justify-content: center;">Best results with text-based PDFs.<br>Scanned files may not work accurately.</h4>
+      <h4 style="color: #10a37f;display: flex;justify-content: center;font-size: 18px;">Best results with text-based
+        PDFs.<br>Scanned files may not work accurately.</h4>
 
       <label class="upload-btn-white">
         📂 Upload PDF
         <input type="file" accept="application/pdf" (change)="onFileSelected($event)" hidden>
       </label>
-      <button (click)="uploadFile()" [disabled]="isUploading">
+      <button (click)="uploadFile()" [disabled]="isUploading" style="font-size: 16px;">
         {{ isUploading ? 'Processing...' : 'Process Document' }}
       </button>
 
-      <p class="status">{{ message }}</p>
+      <p class="status">{{ pickedFile }}</p>
+      <p *ngIf="logs.length == 0" class="status">{{ message }}</p>
     </div>
     <div *ngIf="logs.length > 0">
-      <h4>File Processing status</h4>
+      <h4>
+        <svg *ngIf="message != '✅ All set! You can start asking questions now.'" width="50" height="20" viewBox="0 0 50 20">
+          <circle cx="10" cy="10" r="4" fill="#aaa">
+            <animate attributeName="opacity" values="0.2;1;0.2" dur="1.2s" repeatCount="indefinite" begin="0s"></animate>
+          </circle>
+          <circle cx="25" cy="10" r="4" fill="#aaa">
+            <animate attributeName="opacity" values="0.2;1;0.2" dur="1.2s" repeatCount="indefinite" begin="0.2s"></animate>
+          </circle>
+          <circle cx="40" cy="10" r="4" fill="#aaa">
+            <animate attributeName="opacity" values="0.2;1;0.2" dur="1.2s" repeatCount="indefinite" begin="0.4s"></animate>
+          </circle>
+        </svg>
+        File Processing status
+      </h4>
       <div *ngFor="let log of logs">
         {{ log }}
       </div>
     </div>
 
     <div class="tech-box">
-      
+
       <div class="info-panel rag-panel">
 
-        <h3>🧠 RAG Pipeline</h3>
+        <h3 style="font-size: 18px;">🧠 RAG Pipeline</h3>
 
         <!-- COMPONENT DETAILS -->
         <div class="info-section">
-          <h4>⚙️ Components</h4>
+          <h4 style="font-size: 16px;">⚙️ Components</h4>
 
           <div *ngFor="let item of ragArchitecture.components" class="tech-item">
             <strong>{{ item.title }}</strong>
@@ -44,9 +59,9 @@
         <!-- BADGE -->
         <div class="tech-item">
           <strong>🚀 Design Philosophy</strong>
-        <p class="badge">
-          Built for scalable semantic retrieval, low-latency inference, and explainable AI responses.
-        </p>
+          <p class="badge">
+            Built for scalable semantic retrieval, low-latency inference, and explainable AI responses.
+          </p>
         </div>
         <!-- <p class="badge">
           🚀 Built for scalable semantic retrieval, low-latency inference, and explainable AI responses.
@@ -72,12 +87,23 @@
         <div *ngIf="qa.question" class="message user question">
           {{ qa.question }}
         </div>
-      
+
         <!-- <p>{{qa.isQuerying}}</p> -->
-        <span *ngIf="qa.isQuerying"  class="message ai answer">
-          ⏳ Thinking...
+        <span *ngIf="qa.isQuerying" class="message ai answer">
+          <!-- ⏳ Thinking... -->
+          <svg width="50" height="20" viewBox="0 0 50 20">
+            <circle cx="10" cy="10" r="4" fill="#aaa">
+              <animate attributeName="opacity" values="0.2;1;0.2" dur="1.2s" repeatCount="indefinite" begin="0s" />
+            </circle>
+            <circle cx="25" cy="10" r="4" fill="#aaa">
+              <animate attributeName="opacity" values="0.2;1;0.2" dur="1.2s" repeatCount="indefinite" begin="0.2s" />
+            </circle>
+            <circle cx="40" cy="10" r="4" fill="#aaa">
+              <animate attributeName="opacity" values="0.2;1;0.2" dur="1.2s" repeatCount="indefinite" begin="0.4s" />
+            </circle>
+          </svg>
         </span>
-      
+
         <div *ngIf="qa.answer"  class="message ai answer">
           {{ qa.answer }}
         </div>
@@ -89,10 +115,10 @@
     <!-- INPUT BOX -->
     <div class="input-box">
       <input [(ngModel)]="question" name="question" [disabled]="askDisable"
-        style="width: 100%;height: 50px;"
+        style="width: 100%;height: 50px;font-size: 18px;"
         placeholder="Ask a question about your document..." />
 
-      <button (click)="getAnswer()" [disabled]="askDisable">
+      <button (click)="getAnswer()" [disabled]="askDisable" style="font-size: 18px;">
         Ask
       </button>
     </div>
