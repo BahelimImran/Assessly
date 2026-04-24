@@ -32,6 +32,7 @@ export class UploadSyllabusComponent implements OnInit{
   askDisable: boolean = false;
 
   listOfQA : QA[] = [];
+  logs: string[] = [];
 
   ragConfig = [
   {
@@ -150,9 +151,12 @@ Context ranking tuned for relevance and minimal hallucination.`
     this.http.post(`${this.apiBaseUrl}/ingest`, formData)
       .subscribe({
         next: () => {
-          this.message = '✅ Document indexed successfully';
+          // this.message = '✅ Document indexed successfully';
           this.isUploading = false;
           this.isIngested = true;
+          
+      // ✅ Start listening to logs
+          this.startLogStream();          
           this.cd.detectChanges();
         },
         error: () => {
@@ -162,6 +166,27 @@ Context ranking tuned for relevance and minimal hallucination.`
         }
       });
   }
+  startLogStream() {
+    const eventSource = new EventSource(`${this.apiBaseUrl}/ingest/stream`);
+
+    eventSource.onmessage = (event) => {
+      console.log(event.data);
+
+      // store logs in array (for UI)
+      this.logs.push(event.data);
+
+      // update message with latest log
+      this.message = event.data;
+
+      this.cd.detectChanges();
+    };
+
+    eventSource.onerror = (error) => {
+      console.error('SSE error:', error);
+      eventSource.close();
+    };
+  }
+
 
   getAnswer() {
     if (!this.question) return;

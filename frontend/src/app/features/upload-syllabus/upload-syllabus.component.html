@@ -18,6 +18,12 @@
 
       <p class="status">{{ message }}</p>
     </div>
+    <div *ngIf="logs.length > 0">
+      <h4>File Processing status</h4>
+      <div *ngFor="let log of logs">
+        {{ log }}
+      </div>
+    </div>
 
     <div class="tech-box">
       
