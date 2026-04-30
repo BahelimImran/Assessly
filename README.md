@@ -4,7 +4,8 @@ Assessly is a **Retrieval-Augmented Generation (RAG) powered Knowledge Assistant
 
 Built with a modern full-stack architecture, Assessly transforms static PDFs into **interactive knowledge systems** using semantic search and LLM-based reasoning.
 
-🎥 Demo Video: https://www.linkedin.com/feed/update/urn:li:activity:7453663316465422337/
+🎥Demo Vide0: https://www.linkedin.com/feed/update/urn:li:activity:7453663316465422337/
+
 ---
 
 ## 🚀 Features
