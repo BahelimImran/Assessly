@@ -21,6 +21,8 @@ export class UploadSyllabusComponent implements OnInit{
 
   apiBaseUrl = environment.apiBaseUrl;
 
+  activeUserId: string = '';
+
   selectedFile: File | null = null;
   message = '';
   pickedFile : string ='';
@@ -125,6 +127,7 @@ Context ranking tuned for relevance and minimal hallucination.`
   ]
 };
 
+
   constructor(private http: HttpClient, private cd: ChangeDetectorRef) {}
 
   ngOnInit(): void {
@@ -151,10 +154,11 @@ Context ranking tuned for relevance and minimal hallucination.`
 
     this.http.post(`${this.apiBaseUrl}/ingest`, formData)
       .subscribe({
-        next: () => {
+        next: (ingestRes:any) => {
           // this.message = '✅ Document indexed successfully';
           this.isUploading = false;
           this.isIngested = true;
+          this.activeUserId = ingestRes['user_id'];
           
       // ✅ Start listening to logs
           this.startLogStream();          
@@ -201,9 +205,8 @@ Context ranking tuned for relevance and minimal hallucination.`
         "answer": this.answer
       });
 
-
     this.http.post(`${this.apiBaseUrl}/query`, {
-      question: this.question
+      question: this.question, user_id: this.activeUserId
     }).subscribe({
       next: (res: any) => {
         this.answer = res.answer || 'No answer found';
