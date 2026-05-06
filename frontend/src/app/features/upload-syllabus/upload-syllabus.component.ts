@@ -21,8 +21,11 @@ export class UploadSyllabusComponent implements OnInit{
 
   apiBaseUrl = environment.apiBaseUrl;
 
+  activeUserId: string = '';
+
   selectedFile: File | null = null;
   message = '';
+  pickedFile : string ='';
   isUploading = false;
 
   question: string = '';
@@ -32,6 +35,7 @@ export class UploadSyllabusComponent implements OnInit{
   askDisable: boolean = false;
 
   listOfQA : QA[] = [];
+  logs: string[] = [];
 
   ragConfig = [
   {
@@ -110,7 +114,7 @@ Context ranking tuned for relevance and minimal hallucination.`
     },
     {
       title: '🤖 LLM (Generation)',
-      value: 'Ollama (Mistral / LLaMA) for grounded answers'
+      value: 'Ollama (Mistral) for grounded answers'
     },
     {
       title: '🧩 Orchestration',
@@ -123,6 +127,7 @@ Context ranking tuned for relevance and minimal hallucination.`
   ]
 };
 
+
   constructor(private http: HttpClient, private cd: ChangeDetectorRef) {}
 
   ngOnInit(): void {
@@ -134,7 +139,7 @@ Context ranking tuned for relevance and minimal hallucination.`
     const input = event.target as HTMLInputElement;
     if (input.files && input.files.length > 0) {
       this.selectedFile = input.files[0];
-      this.message = `Selected: ${this.selectedFile.name}`;
+      this.pickedFile = `Selected: ${this.selectedFile.name}`;
     }
   }
 
@@ -149,10 +154,14 @@ Context ranking tuned for relevance and minimal hallucination.`
 
     this.http.post(`${this.apiBaseUrl}/ingest`, formData)
       .subscribe({
-        next: () => {
-          this.message = '✅ Document indexed successfully';
+        next: (ingestRes:any) => {
+          // this.message = '✅ Document indexed successfully';
           this.isUploading = false;
           this.isIngested = true;
+          this.activeUserId = ingestRes['user_id'];
+          
+      // ✅ Start listening to logs
+          this.startLogStream();          
           this.cd.detectChanges();
         },
         error: () => {
@@ -162,6 +171,27 @@ Context ranking tuned for relevance and minimal hallucination.`
         }
       });
   }
+  startLogStream() {
+    const eventSource = new EventSource(`${this.apiBaseUrl}/ingest/stream`);
+
+    eventSource.onmessage = (event) => {
+      console.log(event.data);
+
+      // store logs in array (for UI)
+      this.logs.push(event.data);
+
+      // update message with latest log
+      this.message = event.data;
+
+      this.cd.detectChanges();
+    };
+
+    eventSource.onerror = (error) => {
+      console.error('SSE error:', error);
+      eventSource.close();
+    };
+  }
+
 
   getAnswer() {
     if (!this.question) return;
@@ -175,9 +205,8 @@ Context ranking tuned for relevance and minimal hallucination.`
         "answer": this.answer
       });
 
-
     this.http.post(`${this.apiBaseUrl}/query`, {
-      question: this.question
+      question: this.question, user_id: this.activeUserId
     }).subscribe({
       next: (res: any) => {
         this.answer = res.answer || 'No answer found';

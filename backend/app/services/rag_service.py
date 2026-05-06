@@ -12,10 +12,11 @@ import numpy as np
 
 
 # ---------------- INGEST ----------------
-def ingest_pdf(file_path):
+def ingest_pdf(file_path, log):
     print("\n\n\n 📥 Ingesting document...")
     print(f"\n ⚙️  [File: {file_path}]")
     
+    log("✔️ 📄 Parsing document structure...")
     print("\n\n\n\n\n 📄 Parsing document structure...")
     print(f"\n ⚙️  [Hi-res parsing + layout detection]")
     # parse pdf
@@ -36,6 +37,7 @@ def ingest_pdf(file_path):
         final_metas.append(temp_metadata)
     
     embeddings = []
+    log("✔️ 🧠 Generating embeddings...")
     print("\n\n\n\n\n 🧠 Generating embeddings...")
     print(f"\n ⚙️  [Embedding model: nomic-embed-text]")
     for text in final_docs:
@@ -45,6 +47,7 @@ def ingest_pdf(file_path):
             embeddings.append(emb)
         else:
             embeddings.append([0.0] * 786) # fallback # Todo
+    log("✔️ 📦 Storing in vector database...")
     print("\n\n\n\n\n 📦 Storing in vector database...")
     print(f"\n ⚙️  [ChromaDB collection updated]")	
     # Store in Chroma
@@ -55,6 +58,7 @@ def ingest_pdf(file_path):
         embeddings = embeddings,
         ids=ids # Todo
     )
+    log("✔️ ✅ Ingestion complete...")
     print("\n\n\n\n\n ✅ Ingestion complete")
     print(f"\n ⚙️  [Total ingested chunks: {len(all_chunks)} | Status: Success]\n\n\n")	
     print("=================================================================================")

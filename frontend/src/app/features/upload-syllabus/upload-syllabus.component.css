@@ -7,14 +7,33 @@ body {
 .app-container {
   display: flex;
   height: 100vh;
+  overflow: hidden;
 }
 
 /* SIDEBAR */
 .sidebar {
-  width: 300px;
+  width: 500px;
+  min-width: 460px;
+  max-width: 520px;
   background: #202123;
   color: white;
   padding: 20px;
+  overflow-y: auto;
+}
+
+@media (max-width: 768px) {
+  .sidebar {
+    position: absolute;
+    left: -100%;
+    top: 0;
+    height: 100%;
+    z-index: 1000;
+    transition: left 0.3s ease;
+  }
+
+  .sidebar.open {
+    left: 0;
+  }
 }
 
 .sidebar h2 {
@@ -82,10 +101,12 @@ body {
 .question {
   margin-left: 30%;
   margin-right: 20%;
+  font-size: 16px;
 }
 .answer {
   margin-left: 10%;
   margin-right: 40%;
+  font-size: 16px;
 }
 
 .user {
@@ -95,7 +116,13 @@ body {
 
 .ai {
   background: #444654;
-  align-self: flex-start;
+  margin-right: flex-start;
+}
+
+@media (max-width: 768px) {
+  .message {
+    max-width: 90%;
+  }
 }
 
 .empty-state {
@@ -109,13 +136,26 @@ body {
   
 }
 
+@media (max-width: 768px) {
+  .app-container {
+    flex-direction: column;
+  }
+
+  .chat-container {
+    width: 100%;
+  }
+}
+
 /* INPUT */
 .input-box {
   display: flex;
-  padding: 15px;
+  padding: 10px;
   background: #40414f;
-  margin-left: 10%;
-  margin-right: 10%;
+  width: 100%;
+  max-width: 900px;
+  margin: 0 auto;
+  position: sticky;
+  bottom: 0;
 }
 
 .input-box input {
@@ -250,11 +290,11 @@ body {
 
 .tech-item strong {
   color: #10a37f;
-  font-size: 12px;
+  font-size: 16px;
 }
 
 .tech-item p {
-  font-size: 11px;
+  font-size: 14px;
   color: #ccc;
   margin: 2px 0 0;
 }
@@ -274,4 +314,12 @@ body {
   border-color: #4CAF50;
   color: #4CAF50;
   box-shadow: 0 4px 10px rgba(0,0,0,0.08);
+}
+
+h2 {
+  font-size: clamp(18px, 2vw, 28px);
+}
+
+p {
+  font-size: clamp(12px, 1.5vw, 20px);
 }
