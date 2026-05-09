@@ -1,14 +1,35 @@
 import requests
+from dotenv import load_dotenv; load_dotenv()
+import os; 
+EMBED_PROVIDER = os.getenv("EMBED_PROVIDER")
+EMBED_MODEL = os.getenv("EMBED_MODEL")
+LLM_PROVIDER = os.getenv("LLM_PROVIDER")
+LLM_MODEL = os.getenv("LLM_MODEL")
+OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL")
 from typing import List
+from datetime import datetime, timezone
 
 from app.core.config import *
-from app.db.chroma_client import collection
+# from app.db.chroma_client import collection
+from app.db.qdrant_client import qdrant
+from qdrant_client.models import PointStruct
+from app.core.config import PERSIST_DIR, QDRANT_COLLECTION, VECTOR_SIZE
 
-from app.services.pdf_parser import parse_pdf
+# from app.services.pdf_parser import parse_pdf
 from app.services.chunking.chunk_service import process_document
 from app.services.element_processor import process_elements
 from langchain.text_splitter import RecursiveCharacterTextSplitter
-import numpy as np
+from app.services.parsers.docling_parser import parse_pdf_with_docling, build_docling_chunks, parse_document
+# import numpy as np
+
+from app.services.identify_document.identify_document import hash_file_bytes, delete_existing_document, hash_text, clean_metadata
+from app.services.retrieval_search.bm25_search import *
+from app.services.retrieval_search.vector_search import *
+from app.services.retrieval_search.merge_vector_bm25 import *
+from app.services.retrieval_search.reranker import *
+from app.services.retrieval_search.context_compressor import *
+from app.services.measure_confidence.calculate_confidence import *
+import uuid
 
 
 # ---------------- INGEST ----------------
@@ -16,173 +37,632 @@ def ingest_pdf(file_path, log):
     print("\n\n\n 📥 Ingesting document...")
     print(f"\n ⚙️  [File: {file_path}]")
     
+    source_file = os.path.basename(file_path)
+    document_id = hash_file_bytes(file_path)
+    created_at = datetime.now(timezone.utc).isoformat()
+
+    upload_session_id = str(uuid.uuid4())
+    user_id = "default_user"
+
+
+    # existing = collection.get(
+    #     where={"document_id":document_id},
+    #     include=["metadatas"]
+    # )
+
+    # if existing.get("ids"):
+    #     return {
+    #         "status": "duplicate",
+    #         "message": "This document already exists in knowledge base.",
+    #         "document_id": document_id,
+    #         "source_file": os.path.basename(file_path),
+    #         "chunks": len(existing["ids"])
+    #     }
+
+    # Remove old chunks of same document before inserting again
+    deleted_count = delete_existing_document(document_id)
+
+    if deleted_count:
+        log(f"♻️ Existing document found. Replacing {deleted_count} old chunks...")
+        print(f"\n ♻️ Deleted old chunks for document_id: {document_id}")
+
     log("✔️ 📄 Parsing document structure...")
     print("\n\n\n\n\n 📄 Parsing document structure...")
     print(f"\n ⚙️  [Hi-res parsing + layout detection]")
-    # parse pdf
-    elements = parse_pdf(file_path) 
+    
+    # # parse pdf
+    # elements = parse_pdf(file_path) 
 
+    # all_chunks = process_document(elements, file_path)
 
-    all_chunks = process_document(elements, file_path)
-
+    all_chunks = parse_document(file_path)
 
     final_docs = []
     final_metas = []
+    ids = []
 
-    for content in all_chunks: # Todo
 
-        temp_content = content.content
-        temp_metadata = getattr(content, "metadata", {}) #Get a named attribute from an object; getattr(x, 'y') is equivalent to x.y.
-        final_docs.append(temp_content)
-        final_metas.append(temp_metadata)
+
+
+    for index, chunk in enumerate(all_chunks["chunks"]): # Todo
+        content = chunk.get("content", "").strip()
+
+        if not content:
+            continue
+        
+        chunk_hash = hash_text(content)
+        chunk_id = f"{document_id}_{chunk_hash}"
+
+        metadata = {
+
+                # Identity
+                "document_id": document_id,
+                "file_name": source_file,
+                "source_file": source_file,
+                "upload_session_id": upload_session_id,
+                "user_id": user_id,
+
+                # Location
+                "page": chunk.get("page_number", chunk.get("page", "")),
+                "page_number": chunk.get("page_number", chunk.get("page", "")),
+
+                # Section
+                "section": chunk.get("section_title", chunk.get("title", "")),
+                "section_title": chunk.get("section_title", chunk.get("title", "")),
+                "section_path": chunk.get("section_path", ""), # important to show - Finance Approval Matrix > 3. Approval Limits > 3.2 Department Head Approval
+
+                # Chunk
+                "chunk_type": chunk.get("chunk_type", "text"),
+                "chunk_index": index,
+                "chunk_hash": chunk_hash,
+
+                # Useful extras
+                "total_pages": chunk.get("total_pages", ""),
+                "heading_level": chunk.get("heading_level", ""),
+                "content_preview": content[:180],
+                "word_count": len(content.split()),
+                "char_count": len(content),
+                "source_type": "pdf",
+                "parser": chunk.get("parser", "docling"),
+                "image_path": chunk.get("image_path", ""),
+                "created_at": created_at,
+        }
+        final_docs.append(content)
+        final_metas.append(clean_metadata(metadata))
+        ids.append(chunk_id)
+    
     
     embeddings = []
     log("✔️ 🧠 Generating embeddings...")
     print("\n\n\n\n\n 🧠 Generating embeddings...")
-    print(f"\n ⚙️  [Embedding model: nomic-embed-text]")
+    print(f"\n ⚙️  [Embedding model: bge-m3]")
     for text in final_docs:
         emb = get_embedding(text)
 
-        if emb:
-            embeddings.append(emb)
-        else:
-            embeddings.append([0.0] * 786) # fallback # Todo
+        if not emb:
+            raise Exception("Embedding generation failed. Empty embedding returned")
+        
+        embeddings.append(emb)
+        
     log("✔️ 📦 Storing in vector database...")
     print("\n\n\n\n\n 📦 Storing in vector database...")
-    print(f"\n ⚙️  [ChromaDB collection updated]")	
+    print(f"\n ⚙️  [Qdrantdb updated]")	
     # Store in Chroma
-    ids = [f"{file_path}_{i}" for i in range(len(final_docs))]
-    collection.add(
-        documents = final_docs,
-        metadatas = final_metas,
-        embeddings = embeddings,
-        ids=ids # Todo
-    )
+    # ids = [f"{file_path}_{i}" for i in range(len(final_docs))]
+
+    points = []
+
+    for doc, embedding, metadata, custom_chunk_id in zip(final_docs, embeddings, final_metas, ids):
+        points.append(
+            PointStruct(
+                id=str(uuid.uuid4()),
+                vector=embedding,
+                payload={
+                    "content": doc,
+                    "chunk_id": custom_chunk_id, 
+                    **metadata
+                }
+            )
+        )
+
+    if final_docs:
+        qdrant.upsert(
+            collection_name = QDRANT_COLLECTION,
+            points=points
+        )
+
     log("✔️ ✅ Ingestion complete...")
     print("\n\n\n\n\n ✅ Ingestion complete")
-    print(f"\n ⚙️  [Total ingested chunks: {len(all_chunks)} | Status: Success]\n\n\n")	
+    print(f"\n ⚙️  [Total ingested chunks: {len(final_docs)} | Status: Success]\n\n\n")	
     print("=================================================================================")
-    return {"chunks ": len(final_docs)}
+    
+    return {
+        "document_id": document_id,
+        "file_name": source_file,
+        "source_file": source_file,
+        "upload_session_id": upload_session_id,
+        "user_id": user_id,
+        "chunks": len(final_docs),
+        "replaced_existing_chunks": deleted_count
+    }
 
 # ---------------- EMBEDDING ----------------
 def get_embedding(text: str) -> List[float]:
-    response = requests.post(
-        f"{OLLAMA_BASE_URL}/api/embeddings",
-        json={"model": EMBED_MODEL, "prompt": text},
-        timeout=120
-    )
-    data = response.json()
     
-    return data.get("embedding") or data.get("embeddings", [[]])[0]
+    if EMBED_PROVIDER == "ollama":
+
+        response = requests.post(
+            f"{OLLAMA_BASE_URL}/api/embeddings",
+            json={"model": EMBED_MODEL, "prompt": text},
+            timeout=120
+        )
+        data = response.json()
+        
+        return data.get("embedding") or data.get("embeddings", [[]])[0]
+    raise ValueError(f"Unsupported embedding provider: {EMBED_PROVIDER}")
 
 
-def cosine_similarity(emb1: List[float], emb2: List[float]) -> float:
+# def cosine_similarity(emb1: List[float], emb2: List[float]) -> float:
     
-    a = np.array(emb1)
-    b = np.array(emb2)
-    return np.dot(a, b) / (np.linalg.norm(a) * np.linalg.norm(b))
+#     a = np.array(emb1)
+#     b = np.array(emb2)
+#     return np.dot(a, b) / (np.linalg.norm(a) * np.linalg.norm(b))
+
+
+# ---------------- Filter builder ----------------
+# def build_where_filter(filters: dict | None = None):
+#     if not filters:
+#         return None
+
+#     clean_filters = {
+#         key: value
+#         for key, value in filters.items()
+#         if value not in [None, ""]
+#     }
+
+#     if not clean_filters:
+#         return None
+
+#     if len(clean_filters) == 1:
+#         return clean_filters
+
+#     return {
+#         "$and": [{key: value} for key, value in clean_filters.items()]
+#     }
+# def build_where_filter(filters):
+#     user_id = filters.get("user_id")
+#     document_id = filters.get("document_id")
+#     upload_session_id = filters.get("upload_session_id")
+
+#     if document_id:
+#         return {
+#             "$and": [
+#                 {"document_id": document_id},
+#                 {"user_id": user_id}
+#             ]
+#         }
+
+#     if upload_session_id:
+#         return {
+#             "$and": [
+#                 {"upload_session_id": upload_session_id},
+#                 {"user_id": user_id}
+#             ]
+#         }
+
+#     return {"user_id": user_id}
+
+def build_where_filter(filters: dict | None = None):
+    filters = filters or {}
+
+    user_id = filters.get("user_id") or "default_user"
+    document_id = filters.get("document_id")
+    upload_session_id = filters.get("upload_session_id")
+    file_name = filters.get("file_name")
+    page = filters.get("page")
+    section = filters.get("section")
+    chunk_type = filters.get("chunk_type")
+
+    conditions = [{"user_id": user_id}]
+
+    if document_id:
+        conditions.append({"document_id": document_id})
+    elif upload_session_id:
+        conditions.append({"upload_session_id": upload_session_id})
+
+    if file_name:
+        conditions.append({"file_name": file_name})
+
+    if page:
+        conditions.append({"page_number": page})
+
+    if section:
+        conditions.append({"section_title": section})
+
+    if chunk_type:
+        conditions.append({"chunk_type": chunk_type})
+
+    if len(conditions) == 1:
+        return conditions[0]
+
+    return {"$and": conditions} # logical AND filter object | every condition must pass
 
 # ---------------- RETRIEVE ----------------
 def get_relevant_chunks(question: str):
     emb = get_embedding(question)
 
-    results = collection.query(
+    results = qdrant.query(
         query_embeddings=[emb],
         n_results=TOP_K
     )
     
     return results["documents"][0]
 
-def query_rag(query):
-    print("\n\n\n\n\n 📚 Searching policy documents...")
-    print(f"\n ⚙️  [Generating query embedding...]")
-    emb = get_embedding(query)
+# def query_rag(query):
+    # print("\n\n\n\n\n 📚 Searching policy documents...")
+    # print(f"\n ⚙️  [Generating query embedding...]")
+    # emb = get_embedding(query)
 
-    print("\n\n\n\n\n 🔍 Finding relevant sections...")
-    print(f"\n ⚙️  [Querying vector DB + cosine similarity]")
-    results = collection.query(
-        query_embeddings=[emb],
-        n_results = 5,
-        include=["documents", "metadatas", "embeddings"]
+    # print("\n\n\n\n\n 🔍 Finding relevant sections...")
+    # print(f"\n ⚙️  [Querying vector DB + cosine similarity]")
+
+
+    # results = collection.query(
+    #     query_embeddings=[emb],
+    #     n_results = 5,
+    #     include=["documents", "metadatas", "embeddings"]
+    # )
+    # docs = results["documents"][0]
+    # metas = results["metadatas"][0]
+    # doc_embeddings = results["embeddings"][0]
+
+    # response = []
+    # """
+    # docs, metas, and doc_embeddings are three parallel lists
+    # zip(...) iterates over them together
+    # each loop gets one doc, one matching meta, and one matching doc_emb
+    # the loop stops when the shortest list runs out
+    # """
+    # for doc, meta, doc_emb in zip(docs, metas, doc_embeddings):
+        
+    #     similarity = cosine_similarity(emb, doc_emb)
+    #     passes_test = similarity > 0.8  # Threshold for "passes test"
+    #     # response.append({
+    #     #     "content": doc,
+    #     #     "page": meta.get("page"),
+    #     #     "type": meta.get("type"),
+    #     #     "similarity": round(similarity, 4),
+    #     #     "passes_similarity_test": passes_test
+    #     # })
+    #     response.append({
+    #         "content": doc,
+    #         "page_number": meta.get("page_number"),
+    #         "section_title": meta.get("section_title"),
+    #         "chunk_type": meta.get("chunk_type"),
+    #         "source_file": meta.get("source_file"),
+    #         "document_id": meta.get("document_id"),
+    #         "similarity": round(similarity, 4),
+    #         "passes_similarity_test": passes_test
+    #     })
+    # print("\n\n\n\n\n 📄 Found 5 relevant chunks")
+    # print(f"\n ⚙️  [Top-k retrieval complete]")
+    # # final_result = []
+    # # for content in response:
+    # #     final_result.append(content["content"])
+
+    # # return final_result 
+
+    # return response
+
+def query_rag(query: str, filters: dict | None = None):
+    print("\n\n\n 📚 Searching documents...")
+    print("\n ⚙️ [Hybrid retrieval: Vector top 10 + BM25 top 10]")
+
+    where_filter = build_where_filter(filters)
+
+    # vector_results = vector_search(query, top_k=20)
+    # bm25_results = bm25_search(query, top_k=20)
+
+    vector_results = vector_search(query, top_k=10, where_filter=where_filter)
+    bm25_results = bm25_search(query, top_k=10, where_filter=where_filter)
+
+    print(f"\n ⚙️ [Vector candidates: {len(vector_results)} | BM25 candidates: {len(bm25_results)}]")
+
+    fused_results = reciprocal_rank_fusion(
+        vector_results=vector_results,
+        bm25_results=bm25_results,
+        k=60,
+        max_candidates=12, #actual reranker workload
     )
-    docs = results["documents"][0]
-    metas = results["metadatas"][0]
-    doc_embeddings = results["embeddings"][0]
+
+    print(f"\n ⚙️ [Merged candidates after RRF: {len(fused_results)}]")
+    print("\n ⚙️ [Reranking candidates → top 5]")
+
+    reranked_results = rerank_results(query, fused_results, top_k=5)
+
+    print("\n ⚙️ [Compressing context]")
+    compressed_results = compress_context_chunks(
+        reranked_results,
+        max_chars=12000,
+        max_chunk_chars=3000,
+    )
 
     response = []
-    """
-    docs, metas, and doc_embeddings are three parallel lists
-    zip(...) iterates over them together
-    each loop gets one doc, one matching meta, and one matching doc_emb
-    the loop stops when the shortest list runs out
-    """
-    for doc, meta, doc_emb in zip(docs, metas, doc_embeddings):
-        
-        similarity = cosine_similarity(emb, doc_emb)
-        passes_test = similarity > 0.8  # Threshold for "passes test"
+    for item in compressed_results:
+        meta = item.get("metadata", {})
         response.append({
-            "content": doc,
-            "page": meta.get("page"),
-            "type": meta.get("type"),
-            "similarity": round(similarity, 4),
-            "passes_similarity_test": passes_test
+            "content": item.get("content", ""),
+            "page_number": meta.get("page_number"),
+            "section_title": meta.get("section_title"),
+            "section_path": meta.get("section_path"),
+            "chunk_type": meta.get("chunk_type"),
+            "source_file": meta.get("source_file"),
+            "document_id": meta.get("document_id"),
+            "vector_score": round(item.get("vector_score", 0.0), 4),
+            "bm25_score": round(item.get("bm25_score", 0.0), 4),
+            "rrf_score": round(item.get("rrf_score", 0.0), 4),
+            "rerank_score": round(item.get("rerank_score", 0.0), 4),
+            "retrieved_by": item.get("sources", []),
         })
-    print("\n\n\n\n\n 📄 Found 5 relevant chunks")
-    print(f"\n ⚙️  [Top-k retrieval complete]")
-    final_result = []
-    for content in response:
-        final_result.append(content["content"])
 
-    return final_result 
+    print(f"\n\n\n 📄 Final context chunks: {len(response)}")
+    return response
+
 
 # ---------------- PROMPT ----------------
-def build_context(chunks: List[str]) -> str:
-    return "\n".join(chunks)
+def build_context(chunks):
+    context_blocks = []
 
+    for i, chunk in enumerate(chunks, start=1):
+        meta_line = (
+            # f"[Source {i}] "
+            f"Document: {chunk.get('source_file') or 'Unknown'} | "
+            # f"Section: {chunk.get('section_title') or 'Unknown'} | "
+            # f"Section Path: {chunk.get('section_path') or 'Unknown'} | "
+            f"Page: {chunk.get('page_number') or 'Unknown'} | "
+            # f"Type: {chunk.get('chunk_type') or 'text'} | "
+            # f"Vector: {chunk.get('vector_score')} | "
+            # f"BM25: {chunk.get('bm25_score')} | "
+            # f"RRF: {chunk.get('rrf_score')} | "
+            # f"Rerank: {chunk.get('rerank_score')}"
+        )
+
+        context_blocks.append(f"{meta_line}\n{chunk.get('content', '')}")
+        
+    print(f"context :{context_blocks}")
+    return "\n\n---\n\n".join(context_blocks)
+
+# def create_prompt(question: str, context: str):
+#     return f"""
+#                 You are a document-grounded AI assistant.
+
+#                 Rules:
+#                 - ONLY answer using the provided context.
+#                 - Always mention the source document, section title, and page number when available.
+#                 - If the answer is not found, say: "Not found in document."
+#                 - Do not invent page numbers, section names, or policies.
+
+#                 Answer style:
+#                 Start with a direct answer.
+#                 Then add evidence like:
+#                 "According to <document>, section <section>, page <page>..."
+
+#                 Context:
+#                 {context}
+
+#                 Question:
+#                 {question}
+#                 """
 
 def create_prompt(question: str, context: str):
     return f"""
-You are a helpful AI tutor.
+You are Assessly AI, a document-grounded assistant.
 
-ONLY use the context below.
-If not found, say "Not found in document".
+STRICT RULES:
+1. Answer ONLY from the provided context, concise, professional, and human-readable paragraph.
+2. Do not guess missing details.
 
-Context:
+CONTEXT:
 {context}
 
-Question:
+QUESTION:
 {question}
-"""
 
+ANSWER:
+"""
+# 1. Answer ONLY from the provided context.
+# 2. Keep answers concise, professional, and human-readable paragraph.
+# 3. Prefer bullet points for lists or tabular data.
+# 4. Avoid repetition and unnecessary explanations.
+# 5. Do not guess missing details.
+# 6. If answer is not present, reply exactly: "Not found in document."
 
 # ---------------- LLM ----------------
 def call_llm(prompt: str):
-    print("\n\n\n\n\n ⏳ Waiting for response...")
-    print(f"\n ⚙️  [LLM inference in progress]")
-    response = requests.post(
-        f"{OLLAMA_BASE_URL}/api/generate",
-        json={"model": LLM_MODEL, "prompt": prompt, "stream": False},
-        timeout=120
-    )
-    print("\n\n\n\n\n ✅ Answer ready")
-    print(f"\n ⚙️  [Response received]\n\n\n\n")
-    print("=================================================================================")
-    return response.json().get("response", "")
+    try:
+        print(f"prompt is: {prompt}")
+        print(f"prompt total length is: {len(prompt)}")
+        print("\n\n\n\n\n ⏳ Waiting for response...")
+        print(f"\n ⚙️  [LLM inference in progress]")
+        final_prompt = "/no_think\n\n" + prompt
+        response = requests.post(
+            f"{OLLAMA_BASE_URL}/api/generate",
+            json={
+                        "model": LLM_MODEL, 
+                        "prompt": final_prompt, 
+                        "stream": False,
+                        "options":{
+                            "temperature":0.0, # Low creativity. Good for RAG factual answers. 0.0 = deterministic 0.2 = stable factual 0.8 = creative
+                            "num_ctx":8096, # Max tokens model can consider.Includes: prompt, retrieved chunks, question, answer tokens - Higher = slower + more RAM.
+                            "num_predict":850 # Maximum answer length. Prevents model generating forever. Good for speed.
+                        }
+                    },
+            timeout=300
+        )
+
+        response.raise_for_status()
+        print("\n\n\n\n\n ✅ Answer ready")
+        print(f"\n ⚙️  [Response received]\n\n\n\n")
+        print("=================================================================================")
+        print(f"response :{response.json()}")
+        return response.json().get("response", "").strip()
+        # response = requests.post(
+        # f"{OLLAMA_BASE_URL}/api/chat",
+        #     json={
+        #         "model": LLM_MODEL,
+        #         "messages": [
+        #             {"role": "system", "content": "You are Assessly AI. Answer directly. Do not think step by step. Do not output reasoning."},
+        #             {"role": "user", "content": "/no_think\n\n" + prompt}
+        #         ],
+        #         "stream": False,
+        #         "options": {
+        #             "temperature": 0,
+        #             "top_p": 0.8, # limits token choices to the most probable 80% words/tokens, making answers more focused and less random.
+        #             "repeat_penalty": 1.15, # penalizes repeated words/sentences, reducing verbose looping and repetition.
+        #             "num_predict": 500,
+        #             "num_ctx": 4096
+        #         }
+        #     },
+        #     timeout=300
+        # )
+
+        # data = response.json()
+        # return data["message"]["content"].strip()
+    except requests.exceptions.ReadTimeout:
+        return "The local AI model took too long to respond. Please try with a shorter question or smaller document context."
+    except Exception as e:
+        return f"LLM error: {str(e)}"
 
 
 # ---------------- MAIN PIPELINE ----------------
-def generate_answer(question: str):
+# def generate_answer(question: str, filters: dict | None = None):
+#     print("\n\n\n 🧠 Understanding your question...")
+#     print(f"\n ⚙️  [Query received: {question}]\n")
+
+#     chunks = query_rag(question, filters)
+
+#     if not chunks:
+#         return "No relevant content found." #Todo - error capture for phase
+
+#     print("\n\n\n\n\n ✍️  Generating structured answer...")
+#     print(f"\n ⚙️  [Prompt constructed → Sending to LLM]")
+#     context = build_context(chunks)
+#     prompt = create_prompt(question, context)
+
+#     return call_llm(prompt)
+
+# def calculate_confidence(chunks):
+#     if not chunks:
+#         return 0.0
+
+#     rerank_scores = [c.get("rerank_score", 0.0) for c in chunks]
+#     vector_scores = [c.get("vector_score", 0.0) for c in chunks]
+
+#     avg_vector = sum(vector_scores) / len(vector_scores) if vector_scores else 0.0
+
+#     if any(score > 0 for score in rerank_scores):
+#         top_rerank = max(rerank_scores)
+#         confidence = min(1.0, max(avg_vector, top_rerank / 10))
+#     else:
+#         confidence = avg_vector
+
+#     return round(confidence, 2)
+
+
+def build_citations(chunks):
+    citations = []
+
+    for i, chunk in enumerate(chunks, start=1):
+        citations.append({
+            "source": f"Source {i}",
+            "document_id": chunk.get("document_id"),
+            "file": chunk.get("source_file"),
+            "page": chunk.get("page_number"),
+            "section": chunk.get("section_title"),
+            "section_path": chunk.get("section_path"),
+            "chunk_type": chunk.get("chunk_type"),
+            "vector_score": chunk.get("vector_score"),
+            "bm25_score": chunk.get("bm25_score"),
+            "rrf_score": chunk.get("rrf_score"),
+            "rerank_score": chunk.get("rerank_score"),
+            "retrieved_by": chunk.get("retrieved_by")
+        })
+
+    return citations
+
+
+def validate_grounding(answer, chunks, confidence):
+    answer_lower = answer.lower()
+
+    if not chunks:
+        return False
+
+    if confidence < 0.45:
+        return False
+
+    if "not found" in answer_lower:
+        return False
+
+    has_source_reference = "[source" in answer_lower or "source " in answer_lower
+
+    return has_source_reference
+
+
+def generate_answer(question: str, filters: dict | None = None):
     print("\n\n\n 🧠 Understanding your question...")
     print(f"\n ⚙️  [Query received: {question}]\n")
 
-    chunks = query_rag(question)
+    chunks = query_rag(question, filters)
 
     if not chunks:
-        return "No relevant content found." #Todo - error capture for phase
+        return {
+            "answer": "Not found in document.",
+            "citations": [],
+            "source_chunks": [],
+            "confidence": 0.0,
+            "is_grounded": False,
+            "not_found": True,
+            "validation_notes": [
+                "No relevant chunks were retrieved from the knowledge base."
+            ]
+        }
+
+    confidence = calculate_confidence(chunks)
+    # Confidence should mostly be shown to the user, not used as the only decision-maker.
+    # if confidence < 0.35:
+    #     return {
+    #         "answer": "Not found in document.",
+    #         "citations": build_citations(chunks),
+    #         "source_chunks": chunks,
+    #         "confidence": confidence,
+    #         "is_grounded": False,
+    #         "not_found": True,
+    #         "validation_notes": [
+    #             "Retrieved chunks were too weak to answer safely."
+    #         ]
+    #     }
+    if not chunks:
+     return "Not found in document."
 
     print("\n\n\n\n\n ✍️  Generating structured answer...")
     print(f"\n ⚙️  [Prompt constructed → Sending to LLM]")
+
     context = build_context(chunks)
     prompt = create_prompt(question, context)
+    answer = call_llm(prompt)
 
-    return call_llm(prompt)
+    is_grounded = validate_grounding(answer, chunks, confidence)
+
+    return {
+        "answer": answer,
+        # "citations": build_citations(chunks),
+        # "source_chunks": chunks,
+        # "confidence": confidence,
+        # "is_grounded": is_grounded,
+        # "not_found": "not found" in answer.lower(),
+        # "validation_notes": [
+        #     "Answer generated using retrieved context chunks.",
+        #     "Citations are based on retrieved source metadata.",
+        #     "Confidence is calculated from retrieval/reranking signals."
+        # ]
+    }

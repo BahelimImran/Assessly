@@ -1,4 +1,4 @@
-from unstructured.partition.pdf import partition_pdf
+# from unstructured.partition.pdf import partition_pdf
 import re
 
 def is_good_parse(elements):
@@ -20,23 +20,23 @@ def is_good_parse(elements):
 
     return True
 
-def parse_pdf(file_path: str):
+# def parse_pdf(file_path: str):
 
-    # Parse pdf into structure elements (text, tables, images, etc.)
+#     # Parse pdf into structure elements (text, tables, images, etc.)
 
-    # First try fast no OCR
-    elements = partition_pdf(
-        filename=file_path,
-        strategy="hi_res", #Important for layout detection
-        infer_table_structure=True,
-        include_page_breaks=True,
-        chunking_strategy=None, 
+#     # First try fast no OCR
+#     elements = partition_pdf(
+#         filename=file_path,
+#         strategy="hi_res", #Important for layout detection
+#         infer_table_structure=True,
+#         include_page_breaks=True,
+#         chunking_strategy=None, 
 
-    )
+#     )
 
-    # check quality
-    if not is_good_parse(elements):
-        print("Falling back to other strategy")
+#     # check quality
+#     if not is_good_parse(elements):
+#         print("Falling back to other strategy")
 
 
-    return elements
+#     return elements

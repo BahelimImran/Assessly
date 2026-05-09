@@ -76,7 +76,14 @@ async def upload_and_ingest(file: UploadFile = File(...)):
         return {
             "message": "Upload + Ingestion successful",
             "file": file.filename,
+            "user_id": "default_user",
             # "ingestion": result
+
+            # "document_id": "doc_abc",
+            # "upload_session_id": "session_xyz",
+            # "file_name": "Finance_Approval_Matrix.pdf",
+            # "user_id": "default_user",
+            # "chunks": 42
         }
 
     except Exception as e:
