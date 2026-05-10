@@ -46,59 +46,6 @@ def get_embedding(text: str) -> List[float]:
     
     return embedding
 
-# def cosine_similarity(emb1: List[float], emb2: List[float]) -> float:
-    
-#     a = np.array(emb1)
-#     b = np.array(emb2)
-#     return np.dot(a, b) / (np.linalg.norm(a) * np.linalg.norm(b))
-
-def _distance_to_similarity(distance: float | None) -> float:
-    """
-    Chroma returns distance. For cosine space, lower is better.
-    This converts it into an easy-to-read similarity-like score.
-    """
-    if distance is None:
-        return 0.0
-    return 1 / (1 + float(distance))
-
-
-# def vector_search(query: str, top_k: int = 20, where_filter: dict | None = None) -> List[Dict[str, Any]]:
-   
-#     query_embedding = get_embedding(query)
-
-#     # results = qdrant.query(
-#     #     query_embeddings=[query_embedding],
-#     #     n_results=top_k,
-#     #     include=["documents", "metadatas", "distances"],
-#     # )
-#     query_args = {
-#     "query_embeddings": [query_embedding],
-#     "n_results": top_k,
-#     "include": ["documents", "metadatas", "distances"],
-#     }
-
-#     if where_filter:
-#         query_args["where"] = where_filter
-    
-#     results = qdrant.query(**query_args) #Todo
-
-#     ids = results.get("ids", [[]])[0]
-#     docs = results.get("documents", [[]])[0]
-#     metas = results.get("metadatas", [[]])[0]
-#     distances = results.get("distances", [[]])[0]
-
-#     response = []
-#     for doc_id, doc, meta, distance in zip(ids, docs, metas, distances):
-#         response.append({
-#             "id": doc_id,
-#             "content": doc,
-#             "metadata": meta or {},
-#             "vector_distance": float(distance),
-#             "vector_score": _distance_to_similarity(distance),
-#             "retrieval_source": "vector",
-#         })
-
-#     return response
 
 def build_qdrant_filter(where_filter: dict | None = None) -> Filter | None:
     """
@@ -202,58 +149,77 @@ def hybrid_search_child_chunks(
 
     return results
 
-def vector_search(
-    query: str,
-    top_k: int = 20,
-    where_filter: dict | None = None
-) -> List[Dict[str, Any]]:
+def extract_unique_parent_ids(child_results: list[dict]) -> list[str]:
+    parent_ids = []
 
-    # child_filter = {
-    #     **(where_filter or {}),
-    #     "content_type": "child_chunk"
-    # }
-    
-    
+    for result in child_results:
+        parent_id = result.get("parent_id")
 
-    qdrant_filter = build_qdrant_filter(where_filter)
-    results = hybrid_search_child_chunks(
-        query,
-        qdrant_filter,
+        if parent_id and parent_id not in parent_ids:
+            parent_ids.append(parent_id)
+
+    parent_ids = rank_parent_ids_from_children(
+        child_results=child_results,
+        max_parents=2
+    )
+    return parent_ids
+
+def rank_parent_ids_from_children(child_results: list[dict], max_parents: int = 3) -> list[str]:
+    parent_scores = {}
+
+    for rank, result in enumerate(child_results, start=1):
+        parent_id = result.get("parent_id")
+        if not parent_id:
+            continue
+
+        score = float(result.get("score") or 0)
+
+        if parent_id not in parent_scores:
+            parent_scores[parent_id] = {
+                "best_score": score,
+                "hit_count": 0,
+                "best_rank": rank,
+            }
+
+        parent_scores[parent_id]["hit_count"] += 1
+        parent_scores[parent_id]["best_score"] = max(
+            parent_scores[parent_id]["best_score"],
+            score
+        )
+        parent_scores[parent_id]["best_rank"] = min(
+            parent_scores[parent_id]["best_rank"],
+            rank
+        )
+
+    ranked = sorted(
+        parent_scores.items(),
+        key=lambda x: (
+            x[1]["best_score"],
+            x[1]["hit_count"],
+            -x[1]["best_rank"],
+        ),
+        reverse=True
     )
 
-    # query_embedding = get_embedding(query)
+    return [parent_id for parent_id, _ in ranked[:max_parents]]
+# def get_parent_chunks_from_hybrid_search(
+#     query: str,
+#     top_k: int = 10,
+#     where_filter: dict | None = None
+    
+# ) -> list[dict]:
 
-    # response = qdrant.query_points(
-    #     collection_name=CHILD_COLLECTION,
-    #     # query_vector=query_embedding,
-    #     query=query_embedding,
-    #     using="dense",
-    #     query_filter=qdrant_filter,
-    #     limit=top_k,
-    #     with_payload=True,
-    #     with_vectors=False
-    # )
+#     qdrant_filter = build_qdrant_filter(where_filter)
 
-    # results = []
+#     child_results = hybrid_search_child_chunks(
+#         query=query,
+#         top_k=top_k,
+#         prefetch_limit=top_k * 2,
+#         qdrant_filter=qdrant_filter
+#     )
 
-    # for point in response.points:
-    #     payload = point.payload or {}
+#     parent_ids = extract_unique_parent_ids(child_results)
 
-    #     results.append({
-    #         # "id": str(point.id),
-    #         # "content": payload.get("content", ""),
-    #         # "metadata": payload,
-    #         # "vector_distance": 1 - float(hit.score),
-    #         # "vector_score": float(point.score),
-    #         # "retrieval_source": "vector",
+#     # parent_chunks = fetch_parent_chunks(parent_ids)
 
-    #         "id": point.id,
-    #         "score": point.score,
-    #         "text": payload.get("text", ""),
-    #         "parent_id": payload.get("parent_id"),
-    #         "payload": payload,
-    #         "retrieval_type": "dense"            
-    #     })
-
-    return results
-
+#     return parent_ids

@@ -27,6 +27,12 @@ from docling_core.types.doc import ImageRefMode, PictureItem, TableItem
 from app.services.parsers.vision_service import call_ollama_vision
 import hashlib
 
+###############
+# from docling.document_converter import DocumentConverter
+from app.services.parsers.docling_normalizer import normalize_docling_markdown
+from app.services.parsers.parent_builder import build_parent_sections
+from app.services.parsers.child_chunker import create_child_chunks
+
 
 def estimate_tokens(text: str) -> int:
     return max(1, len(text.split()) * 1.3)
@@ -709,12 +715,27 @@ def check_parse_quality(markdown: str, visual_items: List[Dict[str, Any]]) -> Di
     }
 
 def parse_document(file_path: str) -> Dict[str, Any]:
-    parsed = parse_pdf_with_docling(file_path, use_ocr=False)
-    if parsed["quality"]["score"] < 60:
-        parsed = parse_pdf_with_docling(file_path, use_ocr=True)
-    chunks = build_docling_chunks(parsed)
+    # parsed = parse_pdf_with_docling(file_path, use_ocr=False)
+    # parsed = parse_pdf_to_elements(file_path)
+    # if parsed["quality"]["score"] < 60:
+    #     parsed = parse_pdf_with_docling(file_path, use_ocr=True)
+    #     parsed = parse_pdf_to_elements(file_path)
+    # chunks = build_docling_chunks(parsed)
 
+    elements = parse_pdf_to_elements(file_path)
+    parent_chunks = build_parent_sections(elements)
+    child_chunks = create_child_chunks(parent_chunks)
     return {
-        "parsed": parsed,
-        "chunks": chunks,
+        "parent_chunks": parent_chunks,
+        "child_chunks": child_chunks,
     }
+############################################################
+def parse_pdf_to_elements(pdf_path: str):
+    converter = DocumentConverter()
+    result = converter.convert(pdf_path)
+
+    markdown_text = result.document.export_to_markdown()
+
+    elements = normalize_docling_markdown(markdown_text)
+
+    return elements

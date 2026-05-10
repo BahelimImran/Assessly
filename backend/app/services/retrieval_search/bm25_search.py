@@ -36,14 +36,18 @@ def bm25_search(
     where_filter: dict | None = None
 ) -> List[Dict[str, Any]]:
 
-    qdrant_filter = build_qdrant_filter(where_filter)
+    child_filter = {
+        **(where_filter or {}),
+        "content_type": "child_chunk"
+    }
+    qdrant_filter = build_qdrant_filter(child_filter)
 
     # Fetch points from Qdrant
     points, _ = qdrant.scroll(
         collection_name=QDRANT_COLLECTION,
         scroll_filter=qdrant_filter,
-        limit=10000,
-        with_payload=True,
+        limit=20, # Maximum records to fetch.
+        with_payload=True, # Return metadata + content.
         with_vectors=False
     )
 

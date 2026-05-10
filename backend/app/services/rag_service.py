@@ -11,9 +11,10 @@ from datetime import datetime, timezone
 
 from app.core.config import *
 # from app.db.chroma_client import collection
-from app.db.qdrant_client import qdrant
+from app.db.qdrant_client import qdrant, create_collections, delete_existing_document
 from qdrant_client.models import PointStruct
-from app.core.config import PERSIST_DIR, QDRANT_COLLECTION, VECTOR_SIZE
+from app.db.qdrant_client import sparse_model
+from app.core.config import PERSIST_DIR, VECTOR_SIZE
 
 # from app.services.pdf_parser import parse_pdf
 from app.services.chunking.chunk_service import process_document
@@ -22,9 +23,10 @@ from langchain.text_splitter import RecursiveCharacterTextSplitter
 from app.services.parsers.docling_parser import parse_pdf_with_docling, build_docling_chunks, parse_document
 # import numpy as np
 
-from app.services.identify_document.identify_document import hash_file_bytes, delete_existing_document, hash_text, clean_metadata
+from app.services.identify_document.identify_document import hash_file_bytes, hash_text, clean_metadata
 from app.services.retrieval_search.bm25_search import *
-from app.services.retrieval_search.vector_search import *
+from app.services.retrieval_search.child_chunks_retrieval import *
+from app.services.retrieval_search.parent_chunks_retrieval import fetch_parent_chunks
 from app.services.retrieval_search.merge_vector_bm25 import *
 from app.services.retrieval_search.reranker import *
 from app.services.retrieval_search.context_compressor import *
@@ -77,103 +79,185 @@ def ingest_pdf(file_path, log):
 
     all_chunks = parse_document(file_path)
 
-    final_docs = []
-    final_metas = []
-    ids = []
+    # final_docs = []
+    # final_metas = []
+    # ids = []
 
 
 
 
-    for index, chunk in enumerate(all_chunks["chunks"]): # Todo
-        content = chunk.get("content", "").strip()
+    # for index, chunk in enumerate(all_chunks["chunks"]): # Todo
+    #     # 'searchable_content' is only available for child and not for parent
+    #     content = chunk.get("content", "").strip()
 
-        if not content:
-            continue
+    #     if not content:
+    #         continue
         
-        chunk_hash = hash_text(content)
-        chunk_id = f"{document_id}_{chunk_hash}"
+    #     chunk_hash = hash_text(content)
+    #     chunk_id = f"{document_id}_{chunk_hash}" # Note- no use yet
 
-        metadata = {
+    #     metadata = {
 
-                # Identity
-                "document_id": document_id,
-                "file_name": source_file,
-                "source_file": source_file,
-                "upload_session_id": upload_session_id,
-                "user_id": user_id,
+    #             # Identity
+    #             "document_id": document_id,
+    #             "file_name": source_file,
+    #             "source_file": source_file,
+    #             "upload_session_id": upload_session_id,
+    #             "user_id": user_id,
 
-                # Location
-                "page": chunk.get("page_number", chunk.get("page", "")),
-                "page_number": chunk.get("page_number", chunk.get("page", "")),
+    #             # Location
+    #             "page": chunk.get("page_number", chunk.get("page", "")), # Todo - add
+    #             "page_number": chunk.get("page_number", chunk.get("page", "")), # Todo - add
 
-                # Section
-                "section": chunk.get("section_title", chunk.get("title", "")),
-                "section_title": chunk.get("section_title", chunk.get("title", "")),
-                "section_path": chunk.get("section_path", ""), # important to show - Finance Approval Matrix > 3. Approval Limits > 3.2 Department Head Approval
+    #             # Section
+    #             "section": chunk.get("section_title", chunk.get("title", "")),
+    #             "section_title": chunk.get("section_title", chunk.get("title", "")),
+    #             "section_path": chunk.get("section_path", ""), # important to show - Finance Approval Matrix > 3. Approval Limits > 3.2 Department Head Approval
 
-                # Chunk
-                "chunk_type": chunk.get("chunk_type", "text"),
-                "chunk_index": index,
-                "chunk_hash": chunk_hash,
+    #             # Chunk
+    #             "chunk_type": chunk.get("chunk_type", "text"), # Note- parant-section and child-text allocated by docling
+    #             "chunk_index": index,
+    #             "chunk_hash": chunk_hash,
 
-                # Useful extras
-                "total_pages": chunk.get("total_pages", ""),
-                "heading_level": chunk.get("heading_level", ""),
-                "content_preview": content[:180],
-                "word_count": len(content.split()),
-                "char_count": len(content),
-                "source_type": "pdf",
-                "parser": chunk.get("parser", "docling"),
-                "image_path": chunk.get("image_path", ""),
-                "created_at": created_at,
-        }
-        final_docs.append(content)
-        final_metas.append(clean_metadata(metadata))
-        ids.append(chunk_id)
+    #             # Useful extras
+    #             "total_pages": chunk.get("total_pages", ""), #Note - chunk don't have
+    #             "heading_level": chunk.get("heading_level", ""),#Note - chunk don't have
+    #             "content_preview": content[:180],
+    #             "word_count": len(content.split()),
+    #             "char_count": len(content),
+    #             "source_type": "pdf",
+    #             "parser": chunk.get("parser", "docling"),
+    #             "image_path": chunk.get("image_path", ""),
+    #             "created_at": created_at,
+    #     }
+    #     final_docs.append(content)
+    #     final_metas.append(clean_metadata(metadata))
+    #     ids.append(chunk_id)
     
     
-    embeddings = []
-    log("✔️ 🧠 Generating embeddings...")
-    print("\n\n\n\n\n 🧠 Generating embeddings...")
-    print(f"\n ⚙️  [Embedding model: bge-m3]")
-    for text in final_docs:
-        emb = get_embedding(text)
+    # embeddings = []
+    # log("✔️ 🧠 Generating embeddings...")
+    # print("\n\n\n\n\n 🧠 Generating embeddings...")
+    # print(f"\n ⚙️  [Embedding model: bge-m3]")
+    # for text in final_docs:
+    #     emb = get_embedding(text)
 
-        if not emb:
-            raise Exception("Embedding generation failed. Empty embedding returned")
+    #     if not emb:
+    #         raise Exception("Embedding generation failed. Empty embedding returned")
         
-        embeddings.append(emb)
+    #     embeddings.append(emb)
         
-    log("✔️ 📦 Storing in vector database...")
-    print("\n\n\n\n\n 📦 Storing in vector database...")
-    print(f"\n ⚙️  [Qdrantdb updated]")	
-    # Store in Chroma
-    # ids = [f"{file_path}_{i}" for i in range(len(final_docs))]
+    # log("✔️ 📦 Storing in vector database...")
+    # print("\n\n\n\n\n 📦 Storing in vector database...")
+    # print(f"\n ⚙️  [Qdrantdb updated]")	
+    # # Store in Chroma
+    # # ids = [f"{file_path}_{i}" for i in range(len(final_docs))]
 
-    points = []
+    # points = []
 
-    for doc, embedding, metadata, custom_chunk_id in zip(final_docs, embeddings, final_metas, ids):
-        points.append(
+    # for doc, embedding, metadata, custom_chunk_id in zip(final_docs, embeddings, final_metas, ids):
+    #     points.append(
+    #         PointStruct(
+    #             id=str(uuid.uuid4()),
+    #             vector=embedding,
+    #             payload={
+    #                 "content": doc,
+    #                 "chunk_id": custom_chunk_id, 
+    #                 **metadata
+    #             }
+    #         )
+    #     )
+
+    # if final_docs:
+    #     qdrant.upsert(
+    #         collection_name = QDRANT_COLLECTION,
+    #         points=points
+    #     )
+
+    # parents qdrant points
+    parents_points = []
+
+    for parent in all_chunks["parent_chunks"]:
+
+        parent_id = parent.get("parent_id", str(uuid.uuid4()))
+        parent["parent_id"] = parent_id
+
+        parent_title = parent.get("title", "")
+        parent_content = "\n\n".join(parent.get("content", []))
+
+        full_parent_text = f"{parent_title}\n\n{parent_content}"
+
+        parents_points.append(
             PointStruct(
-                id=str(uuid.uuid4()),
-                vector=embedding,
+                id=parent_id,
+                vector={},
                 payload={
-                    "content": doc,
-                    "chunk_id": custom_chunk_id, 
-                    **metadata
+                    "parent_id": parent_id,
+                    "document_id": document_id,
+                    "section_title": parent_title,
+                    "full_text": full_parent_text,
+                    "content": parent.get("content", []),
+                    "content_type": "parent_section"
                 }
             )
         )
 
-    if final_docs:
-        qdrant.upsert(
-            collection_name = QDRANT_COLLECTION,
-            points=points
+    
+    # childs qdrant points
+    childs_points = []
+
+    # Embedding in-progress
+    for child in all_chunks["child_chunks"]:
+
+        child_id = child.get("child_id") or str(uuid.uuid4())
+        child["child_id"] = child_id
+
+        text_for_embedding = child.get("chunk_text", "")
+        embedding = get_embedding(text_for_embedding) # Todo-later change with batch embedding - Huge speed improvement
+        sparse_embedding = list(sparse_model.embed([text_for_embedding]))[0]
+
+        childs_points.append(
+            PointStruct(
+                id=child_id,
+                # vector=embedding,
+                vector={
+                    "dense": embedding,
+                    "sparse": {
+                        "indices": sparse_embedding.indices.tolist(),
+                        "values": sparse_embedding.values.tolist()
+                    }
+                },
+                payload={
+                    "user_id": user_id or "default_user",
+                    "child_id": child_id,
+                    "parent_id": child.get("parent_id"),
+                    "document_id": document_id,
+                    "section_title": child.get("section_title", ""),
+                    "chunk_text": text_for_embedding,
+                    "chunk_type": child.get("chunk_type", "paragraph"),
+                    "content_type": "child_chunk"
+                }
+            )
         )
+    
+
+
+    # qdrant store
+    create_collections()
+
+    qdrant.upsert(
+        collection_name=PARENT_COLLECTION,
+        points=parents_points
+    )
+
+    qdrant.upsert(
+        collection_name=CHILD_COLLECTION,
+        points=childs_points
+    )
 
     log("✔️ ✅ Ingestion complete...")
     print("\n\n\n\n\n ✅ Ingestion complete")
-    print(f"\n ⚙️  [Total ingested chunks: {len(final_docs)} | Status: Success]\n\n\n")	
+    print(f"\n ⚙️  [Total ingested chunks: {len(childs_points)} | Status: Success]\n\n\n")	
     print("=================================================================================")
     
     return {
@@ -182,7 +266,7 @@ def ingest_pdf(file_path, log):
         "source_file": source_file,
         "upload_session_id": upload_session_id,
         "user_id": user_id,
-        "chunks": len(final_docs),
+        "chunks": len(childs_points),
         "replaced_existing_chunks": deleted_count
     }
 
@@ -352,61 +436,78 @@ def get_relevant_chunks(question: str):
 
     # # return final_result 
 
-    # return response
+    # return 
+
+def hybrid_child_search(where_filter):
+    child_filter = {
+        **(where_filter or {}),
+        "content_type": "child_chunk"
+    }
+    return child_filter
 
 def query_rag(query: str, filters: dict | None = None):
     print("\n\n\n 📚 Searching documents...")
     print("\n ⚙️ [Hybrid retrieval: Vector top 10 + BM25 top 10]")
 
-    where_filter = build_where_filter(filters)
+    build_filter = build_where_filter(filters)
+    where_filter = hybrid_child_search(build_filter)
 
     # vector_results = vector_search(query, top_k=20)
     # bm25_results = bm25_search(query, top_k=20)
 
-    vector_results = vector_search(query, top_k=10, where_filter=where_filter)
-    bm25_results = bm25_search(query, top_k=10, where_filter=where_filter)
+    # vector_results = vector_search(query, top_k=10, where_filter=where_filter)
+    # bm25_results = bm25_search(query, top_k=10, where_filter=where_filter)
 
-    print(f"\n ⚙️ [Vector candidates: {len(vector_results)} | BM25 candidates: {len(bm25_results)}]")
+    hybrid_search_child_result = hybrid_search_child_chunks(query, top_k=10, where_filter=where_filter)
 
-    fused_results = reciprocal_rank_fusion(
-        vector_results=vector_results,
-        bm25_results=bm25_results,
-        k=60,
-        max_candidates=12, #actual reranker workload
-    )
+    # parent_ids = extract_unique_parent_ids(hybrid_search_child_result)
 
-    print(f"\n ⚙️ [Merged candidates after RRF: {len(fused_results)}]")
-    print("\n ⚙️ [Reranking candidates → top 5]")
+    parent_ids = rank_parent_ids_from_children(child_results=hybrid_search_child_result, max_parents=2)
 
-    reranked_results = rerank_results(query, fused_results, top_k=5)
+    parent_chunks = fetch_parent_chunks(parent_ids)
 
-    print("\n ⚙️ [Compressing context]")
-    compressed_results = compress_context_chunks(
-        reranked_results,
-        max_chars=12000,
-        max_chunk_chars=3000,
-    )
+    # # print(f"\n ⚙️ [Vector candidates: {len(vector_results)} | BM25 candidates: {len(bm25_results)}]")
 
-    response = []
-    for item in compressed_results:
-        meta = item.get("metadata", {})
-        response.append({
-            "content": item.get("content", ""),
-            "page_number": meta.get("page_number"),
-            "section_title": meta.get("section_title"),
-            "section_path": meta.get("section_path"),
-            "chunk_type": meta.get("chunk_type"),
-            "source_file": meta.get("source_file"),
-            "document_id": meta.get("document_id"),
-            "vector_score": round(item.get("vector_score", 0.0), 4),
-            "bm25_score": round(item.get("bm25_score", 0.0), 4),
-            "rrf_score": round(item.get("rrf_score", 0.0), 4),
-            "rerank_score": round(item.get("rerank_score", 0.0), 4),
-            "retrieved_by": item.get("sources", []),
-        })
+    # fused_results = reciprocal_rank_fusion(
+    #     vector_results=vector_results,
+    #     bm25_results=bm25_results,
+    #     k=60,
+    #     max_candidates=12, #actual reranker workload
+    # )
 
-    print(f"\n\n\n 📄 Final context chunks: {len(response)}")
-    return response
+    # fused_results = []
+    # print(f"\n ⚙️ [Merged candidates after RRF: {len(fused_results)}]")
+    # print("\n ⚙️ [Reranking candidates → top 5]")
+
+    # reranked_results = rerank_results(query, fused_results, top_k=5)
+
+    # print("\n ⚙️ [Compressing context]")
+    # compressed_results = compress_context_chunks(
+    #     reranked_results,
+    #     max_chars=12000,
+    #     max_chunk_chars=3000,
+    # )
+
+    # response = []
+    # for item in compressed_results:
+    #     meta = item.get("metadata", {})
+    #     response.append({
+    #         "content": item.get("content", ""),
+    #         "page_number": meta.get("page_number"),
+    #         "section_title": meta.get("section_title"),
+    #         "section_path": meta.get("section_path"),
+    #         "chunk_type": meta.get("chunk_type"),
+    #         "source_file": meta.get("source_file"),
+    #         "document_id": meta.get("document_id"),
+    #         "vector_score": round(item.get("vector_score", 0.0), 4),
+    #         "bm25_score": round(item.get("bm25_score", 0.0), 4),
+    #         "rrf_score": round(item.get("rrf_score", 0.0), 4),
+    #         "rerank_score": round(item.get("rerank_score", 0.0), 4),
+    #         "retrieved_by": item.get("sources", []),
+    #     })
+
+    # print(f"\n\n\n 📄 Final context chunks: {len(response)}")
+    return parent_chunks
 
 
 # ---------------- PROMPT ----------------
@@ -416,10 +517,11 @@ def build_context(chunks):
     for i, chunk in enumerate(chunks, start=1):
         meta_line = (
             # f"[Source {i}] "
-            f"Document: {chunk.get('source_file') or 'Unknown'} | "
-            # f"Section: {chunk.get('section_title') or 'Unknown'} | "
+            # f"Document: {chunk.get('source_file') or 'Unknown'} | "
+            f"Section: {chunk.get('section_title') or 'Unknown'} | "
+            # f"Section Detail: {chunk.get('full_section') or 'Unknown'} | "
             # f"Section Path: {chunk.get('section_path') or 'Unknown'} | "
-            f"Page: {chunk.get('page_number') or 'Unknown'} | "
+            # f"Page: {chunk.get('page_number') or 'Unknown'} | "
             # f"Type: {chunk.get('chunk_type') or 'text'} | "
             # f"Vector: {chunk.get('vector_score')} | "
             # f"BM25: {chunk.get('bm25_score')} | "

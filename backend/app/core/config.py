@@ -9,8 +9,12 @@ import os
 # PERSIST_DIR = "./chromadb"
 
 QDRANT_COLLECTION = "assessly_qdrant_docs"
+PARENT_COLLECTION = "parent_chunks"
+
+CHILD_COLLECTION = "child_chunks"
+VECTOR_SIZE = 1024  # bge-m3 = 1024
+
 PERSIST_DIR = "./qdrant_db"
-VECTOR_SIZE = 1024
 
 TOP_K = 5
 

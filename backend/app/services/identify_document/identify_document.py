@@ -51,41 +51,41 @@ def clean_metadata(meta: dict) -> dict:
     return cleaned
 
 
-def build_document_filter(document_id: str) -> Filter:
-    """
-    Build Qdrant filter for one document.
-    """
+# def build_document_filter(document_id: str) -> Filter:
+#     """
+#     Build Qdrant filter for one document.
+#     """
 
-    return Filter(
-        must=[
-            FieldCondition(
-                key="document_id",
-                match=MatchValue(value=document_id)
-            )
-        ]
-    )
+#     return Filter(
+#         must=[
+#             FieldCondition(
+#                 key="document_id",
+#                 match=MatchValue(value=document_id)
+#             )
+#         ]
+#     )
 
 
-def delete_existing_document(document_id: str) -> int:
-    """
-    Delete all existing chunks/vectors for a document.
-    Prevents duplicate chunks when the same document is uploaded again.
-    """
+# def delete_existing_document(document_id: str) -> int:
+#     """
+#     Delete all existing chunks/vectors for a document.
+#     Prevents duplicate chunks when the same document is uploaded again.
+#     """
 
-    doc_filter = build_document_filter(document_id)
+#     doc_filter = build_document_filter(document_id)
 
-    count_result = qdrant.count(
-        collection_name=QDRANT_COLLECTION,
-        count_filter=doc_filter,
-        exact=True
-    )
+#     count_result = qdrant.count(
+#         collection_name=QDRANT_COLLECTION,
+#         count_filter=doc_filter,
+#         exact=True
+#     )
 
-    existing_count = count_result.count
+#     existing_count = count_result.count
 
-    if existing_count > 0:
-        qdrant.delete(
-            collection_name=QDRANT_COLLECTION,
-            points_selector=doc_filter
-        )
+#     if existing_count > 0:
+#         qdrant.delete(
+#             collection_name=QDRANT_COLLECTION,
+#             points_selector=doc_filter
+#         )
 
-    return existing_count
+#     return existing_count
