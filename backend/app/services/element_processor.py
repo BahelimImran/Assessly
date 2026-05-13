@@ -1,34 +1,34 @@
-def process_elements(elements, source_file):
+# def process_elements(elements, source_file):
 
-    # Convert parse elements to documents + metadata
+#     # Convert parse elements to documents + metadata
 
-    documents = []
-    metadatas = []
+#     documents = []
+#     metadatas = []
 
-    for el in elements:
-        text = getattr(el, "text", "") # Todo
+#     for el in elements:
+#         text = getattr(el, "text", "") # Todo
 
-        if not text or not text.strip(): # Todo
-            continue
+#         if not text or not text.strip(): # Todo
+#             continue
 
-        category = el.category
+#         category = el.category
 
         
-        metadata = {
-            "source" : source_file,
-            "page" : getattr(el.metadata, "page_number", None), # Todo
-            "type" : category
-        }
+#         metadata = {
+#             "source" : source_file,
+#             "page" : getattr(el.metadata, "page_number", None), # Todo
+#             "type" : category
+#         }
 
-        # Smart Handling
-        if category == "Table":
-            text = f"Table data:\n{text}"
+#         # Smart Handling
+#         if category == "Table":
+#             text = f"Table data:\n{text}"
 
-        elif category == "Image":
-            text = f"Image content detected (need OCR/vision processing)"
+#         elif category == "Image":
+#             text = f"Image content detected (need OCR/vision processing)"
         
-        documents.append(text)
-        metadatas.append(metadata)
+#         documents.append(text)
+#         metadatas.append(metadata)
 
 
-    return documents, metadatas
+#     return documents, metadatas

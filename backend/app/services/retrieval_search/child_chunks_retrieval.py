@@ -114,13 +114,13 @@ def hybrid_search_child_chunks(
                 query=dense_query,
                 using="dense",
                 limit=prefetch_limit,
-                # filter=qdrant_filter,
+                filter=qdrant_filter,
             ),
             Prefetch(
                 query=sparse_vector,
                 using="sparse",
                 limit=prefetch_limit,
-                # filter=qdrant_filter,
+                filter=qdrant_filter,
             ),
         ],
 

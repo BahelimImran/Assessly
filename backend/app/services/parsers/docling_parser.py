@@ -21,15 +21,16 @@ from pathlib import Path
 from typing import Any, Dict, List
 from docling.document_converter import DocumentConverter, PdfFormatOption
 from docling.datamodel.base_models import InputFormat
-from docling.datamodel.pipeline_options import PdfPipelineOptions
+from docling.datamodel.pipeline_options import PdfPipelineOptions, EasyOcrOptions
 from docling_core.types.doc import ImageRefMode, PictureItem, TableItem
 
-from app.services.parsers.vision_service import call_ollama_vision
+from app.services.parsers.vision_service import call_ollama_vision, enrich_visual_elements
 import hashlib
+import random
 
 ###############
 # from docling.document_converter import DocumentConverter
-from app.services.parsers.docling_normalizer import normalize_docling_markdown
+# from app.services.parsers.docling_normalizer import normalize_docling_markdown
 from app.services.parsers.parent_builder import build_parent_sections
 from app.services.parsers.child_chunker import create_child_chunks
 
@@ -589,85 +590,89 @@ def parse_pdf_with_docling(
     result = converter.convert(str(path))
     document = result.document
 
-    # Export markdown with referenced images
-    # markdown_path = output_dir / f"{path.stem}.md"
-    # document.save_as_markdown(markdown_path, image_mode=ImageRefMode.REFERENCED)
+    # # Export markdown with referenced images
+    # # markdown_path = output_dir / f"{path.stem}.md"
+    # # document.save_as_markdown(markdown_path, image_mode=ImageRefMode.REFERENCED)
 
-    document.save_as_markdown(
-    markdown_path,
-    image_mode=ImageRefMode.REFERENCED,
-    artifacts_dir=artifacts_dir
-    )
+    # document.save_as_markdown(
+    # markdown_path,
+    # image_mode=ImageRefMode.REFERENCED,
+    # artifacts_dir=artifacts_dir
+    # )
 
-    #Text markdown
-    markdown_text = markdown_path.read_text(encoding="utf-8")
+    # #Text markdown
+    # markdown_text = markdown_path.read_text(encoding="utf-8")
 
-    page_images = []
-    for page_no, page in document.pages.items():
-        image_path = output_dir / f"page_{page.page_no}.png"
-        if page.image and page.image.pil_image:
-            page.image.pil_image.save(image_path, format="PNG")
-            page_images.append({
-                "page": page.page_no,
-                "type": "page_image",
-                "path": str(image_path)
-            })
+    # # page_images = []
+    # # for page_no, page in document.pages.items():
+    # #     image_path = output_dir / f"page_{page.page_no}.png"
+    # #     if page.image and page.image.pil_image:
+    # #         page.image.pil_image.save(image_path, format="PNG")
+    # #         page_images.append({
+    # #             "page": page.page_no,
+    # #             "type": "page_image",
+    # #             "path": str(image_path)
+    # #         })
 
-    visual_items = []
-    table_count = 0
-    picture_count = 0
+    # # visual_items = []
+    # # table_count = 0
+    # # picture_count = 0
 
-    for element, level in document.iterate_items():
-        if isinstance(element, TableItem):
-            table_count += 1
-            table_path = output_dir / f"table_{table_count}.png"
+    # # for element, level in document.iterate_items():
+    # #     if isinstance(element, TableItem):
+    # #         table_count += 1
+    # #         table_path = output_dir / f"table_{table_count}.png"
 
-            try:
-                element.get_image(document).save(table_path, "PNG")
-            except Exception:
-                table_path = ""
+    # #         try:
+    # #             element.get_image(document).save(table_path, "PNG")
+    # #         except Exception:
+    # #             table_path = ""
+    # #         # function - extract_table_markdown
+    # #         table_markdown = extract_table_markdown(element)
 
-            table_markdown = extract_table_markdown(element)
+    # #         visual_items.append({
+    # #             "type": "table",
+    # #             "index": table_count,
+    # #             "path": str(table_path),
+    # #             "caption": extract_caption(element),
+    # #             "table_markdown": table_markdown,
+    # #             "columns": extract_table_columns(table_markdown),
+    # #         })
 
-            visual_items.append({
-                "type": "table",
-                "index": table_count,
-                "path": str(table_path),
-                "caption": extract_caption(element),
-                "table_markdown": table_markdown,
-                "columns": extract_table_columns(table_markdown),
-            })
+    # #     elif isinstance(element, PictureItem):
+    # #         picture_count += 1
+    # #         picture_path = output_dir / f"figure_{picture_count}.png"
+    # #         element.get_image(document).save(picture_path, "PNG")
 
-        elif isinstance(element, PictureItem):
-            picture_count += 1
-            picture_path = output_dir / f"figure_{picture_count}.png"
-            element.get_image(document).save(picture_path, "PNG")
-
-            visual_items.append({
-                "type": "figure",
-                "index": picture_count,
-                "path": str(picture_path),
-                "caption": extract_caption(element),
-            })
+    # #         visual_items.append({
+    # #             "type": "figure",
+    # #             "index": picture_count,
+    # #             "path": str(picture_path),
+    # #             "caption": extract_caption(element), #
+    # #         })
     
-    filtered_items = [
-        item for item in visual_items
-        if should_use_vision(item)
-    ]
+    # # filtered_items = [
+    # #     item for item in visual_items
+    # #     if should_use_vision(item)
+    # # ]
 
-    enriched_visual_items = enrich_visual_items_with_vision(filtered_items)
+    # # enriched_visual_items = enrich_visual_items_with_vision(filtered_items)
 
-    return {
-        "parser": "docling",
-        "source_file": path.name,
-        "output_dir": str(output_dir),
-        "markdown": markdown_text,
-        "markdown_path": str(markdown_path),
-        "page_images": page_images,
-        "visual_items": visual_items,
-        "enriched_visual_items" : enriched_visual_items,
-        "quality": check_parse_quality(markdown_text, visual_items),
-    }
+    # # return {
+    # #     "parser": "docling",
+    # #     "source_file": path.name,
+    # #     "output_dir": str(output_dir),
+    # #     "markdown": markdown_text,
+    # #     "markdown_path": str(markdown_path),
+    # #     "page_images": page_images,
+    # #     "visual_items": visual_items,
+    # #     "enriched_visual_items" : enriched_visual_items,
+    # #     "quality": check_parse_quality(markdown_text, visual_items),
+    # # }
+
+    json_elements = docling_document_to_json_elements(document,output_dir)
+
+    return json_elements
 
 def extract_caption(element):
     try:
@@ -683,6 +688,244 @@ def extract_caption(element):
 
     except Exception:
         return ""
+    
+def docling_document_to_json_elements(document,output_dir):
+    elements = []
+
+    current_section = None
+    current_section_level = None
+    
+    # item_type
+    # 'SectionHeaderItem'
+    # 'TextItem'
+    # 'PictureItem'
+    # 'FormulaItem'
+
+    for item, level in document.iterate_items():
+
+        item_type = item.__class__.__name__
+
+        text = ""
+
+        if hasattr(item, "text"):
+            text = item.text or ""
+
+        element = {
+            # "type": item_type,
+            # "text": text,
+            # "retrieval_text": text,
+            # "metadata": {
+            #     "docling_type": item_type,
+            #     "section_title": current_section,
+            #     "section_level": current_section_level,
+            #     "hierarchy_level": level,
+            #     "page_number": get_page_number(item),
+            # }
+
+            "type": item_type, # "paragraph | heading | table | image",
+            "text": text,
+            "retrieval_text": text,
+            "table_markdown": "...",
+            "table_summary": "...",
+            "image_path": "...",
+            "image_caption": "...",
+            "ocr_text": "...",
+            "image_summary": "...",
+            "metadata": {
+                "page_number": get_page_number(item),
+                "section_title": current_section,
+                "section_level": current_section_level,
+                "content_type": item_type, #"paragraph | table | visual",
+                "docling_type": item_type,
+            }            
+        }
+
+        # heading / section
+        if "Title" in item_type or "Heading" in item_type or "SectionHeaderItem" in item_type:
+            current_section = text
+            current_section_level = level
+            element["type"] = "heading"
+
+        # table
+        elif "Table" in item_type or "TableItem" in item_type:
+            table_md = item.export_to_markdown() if hasattr(item, "export_to_markdown") else ""
+            table_summary = summarize_table_basic(table_md)
+
+            element["type"] = "table"
+            element["table_markdown"] = table_md
+            element["table_summary"] = table_summary
+            element["text"] = table_summary
+            element["retrieval_text"] = f"{table_summary}\n{table_md}".strip()
+
+        # image / picture / chart
+        elif "Picture" in item_type or "Image" in item_type or "PictureItem" in item_type:
+
+            page_no = None
+
+            try:
+                page_no = item.prov[0].page_no
+            except:
+                pass
+
+            element = process_picture_item(
+                item=item,
+                output_dir=output_dir,
+                page_no=page_no
+            )
+            element["type"] = "image"
+            element["image_caption"] = text
+            element["ocr_text"] = ""
+            element["image_summary"] = ""
+            element["retrieval_text"] = text
+            element["metadata"]["content_type"] = "visual"
+
+        # paragraph
+        else:
+            element["type"] = "paragraph"
+
+        elements.append(element)
+
+    return elements
+
+
+
+def process_picture_item(
+    item,
+    output_dir: Path,
+    page_no: int = None
+):
+    image_path = None
+
+    # Save image
+    if item.image and item.image.pil_image:
+
+        number = random.randint(10, 99)
+
+        image_filename = f"page_{page_no}_picture_{number}.png"
+
+        image_path = output_dir / image_filename
+
+        item.image.pil_image.save(image_path, format="PNG")
+
+    # Caption / nearby text
+    caption = ""
+
+    if hasattr(item, "text"):
+        caption = item.text or ""
+
+    # OCR text (later from OCR engine if needed)
+    ocr_text = ""
+
+    # Vision summary
+    image_summary = ""
+
+    # Final searchable retrieval text
+    retrieval_text = "\n".join([
+        caption,
+        ocr_text,
+        image_summary
+    ]).strip()
+
+    element = {
+        "type": "image",
+        "text": caption,
+        "image_path": str(image_path) if image_path else "",
+        "image_caption": caption,
+        "ocr_text": ocr_text,
+        "image_summary": image_summary,
+        "retrieval_text": retrieval_text,
+        "metadata": {
+            "content_type": "visual",
+            "page_number": page_no,
+            "docling_type": item.__class__.__name__
+        }
+    }
+
+    return element
+
+def get_page_number(item):
+    try:
+        prov = item.prov[0]
+        return prov.page_no
+    except Exception:
+        return None
+
+def summarize_table_basic(table_md: str) -> str:
+    """
+    Create lightweight searchable summary from markdown table.
+    Used for dense + sparse retrieval.
+    """
+
+    if not table_md.strip():
+        return ""
+
+    lines = [
+        line.strip()
+        for line in table_md.splitlines()
+        if line.strip()
+    ]
+
+    # Remove separator rows like:
+    # |---|---|
+    cleaned_lines = [
+        line for line in lines
+        if not re.match(r'^\|?[\s\-:|]+\|?$', line)
+    ]
+
+    if not cleaned_lines:
+        return ""
+
+    # Header row
+    header_row = cleaned_lines[0]
+
+    headers = [
+        col.strip()
+        for col in header_row.strip("|").split("|")
+        if col.strip()
+    ]
+
+    # Data rows
+    data_rows = cleaned_lines[1:]
+
+    row_count = len(data_rows)
+    col_count = len(headers)
+
+    summary_parts = []
+
+    summary_parts.append(
+        f"Table with {row_count} rows and {col_count} columns."
+    )
+
+    if headers:
+        summary_parts.append(
+            f"Columns: {', '.join(headers)}."
+        )
+
+    # Add sample rows for retrieval quality
+    sample_rows = data_rows[:3]
+
+    if sample_rows:
+        sample_texts = []
+
+        for row in sample_rows:
+            values = [
+                val.strip()
+                for val in row.strip("|").split("|")
+                if val.strip()
+            ]
+
+            row_text = ", ".join(values)
+
+            if row_text:
+                sample_texts.append(row_text)
+
+        if sample_texts:
+            summary_parts.append(
+                "Sample rows: " + " | ".join(sample_texts)
+            )
+
+    return " ".join(summary_parts)
+
 
 def check_parse_quality(markdown: str, visual_items: List[Dict[str, Any]]) -> Dict[str, Any]:
     text = markdown.strip()
@@ -714,28 +957,70 @@ def check_parse_quality(markdown: str, visual_items: List[Dict[str, Any]]) -> Di
         "needs_visual_processing": image_placeholders > 0 or has_math_loss,
     }
 
-def parse_document(file_path: str) -> Dict[str, Any]:
+def parse_document(file_path: str, log) -> Dict[str, Any]:
     # parsed = parse_pdf_with_docling(file_path, use_ocr=False)
     # parsed = parse_pdf_to_elements(file_path)
     # if parsed["quality"]["score"] < 60:
-    #     parsed = parse_pdf_with_docling(file_path, use_ocr=True)
+    parsed = parse_pdf_with_docling(file_path, use_ocr=True)
     #     parsed = parse_pdf_to_elements(file_path)
     # chunks = build_docling_chunks(parsed)
 
-    elements = parse_pdf_to_elements(file_path)
-    parent_chunks = build_parent_sections(elements)
+    # elements = parse_pdf_to_elements(file_path, use_ocr=True)
+
+    # Only enrich image/chart elements
+    enriched_with_ocr_parsed = enrich_visual_elements(parsed) # Todo - control image generation
+
+    log("✔️ 🧩 Chunking document into sections includes parent & child")
+    parent_chunks = build_parent_sections(enriched_with_ocr_parsed)
     child_chunks = create_child_chunks(parent_chunks)
     return {
         "parent_chunks": parent_chunks,
         "child_chunks": child_chunks,
     }
-############################################################
-def parse_pdf_to_elements(pdf_path: str):
-    converter = DocumentConverter()
+
+# def parse_pdf_to_elements(pdf_path: str, use_ocr: bool = False):
+#     converter = DocumentConverter()
+#     result = converter.convert(pdf_path)
+
+#     markdown_text = result.document.export_to_markdown()
+
+#     elements = normalize_docling_markdown(markdown_text)
+
+#     return elements
+
+def parse_pdf_to_elements(pdf_path: str, use_ocr: bool) -> List[Dict[str, Any]]:
+    pipeline_options = PdfPipelineOptions()
+
+    # OCR support
+    pipeline_options.do_ocr = use_ocr
+    pipeline_options.ocr_options = EasyOcrOptions(
+        lang=["en"],
+        force_full_page_ocr=use_ocr
+    )
+
+    # Table support
+    pipeline_options.do_table_structure = True
+
+    # Image/chart extraction support
+    pipeline_options.generate_page_images = True
+    pipeline_options.generate_picture_images = True
+    pipeline_options.images_scale = 2.0
+
+    converter = DocumentConverter(
+        format_options={
+            InputFormat.PDF: PdfFormatOption(
+                pipeline_options=pipeline_options
+            )
+        }
+    )
+
     result = converter.convert(pdf_path)
 
     markdown_text = result.document.export_to_markdown()
 
-    elements = normalize_docling_markdown(markdown_text)
+    # elements = normalize_docling_markdown(markdown_text)
+
+    # Only enrich image/chart elements
+    elements = enrich_visual_elements(elements)
 
     return elements

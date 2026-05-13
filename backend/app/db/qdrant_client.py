@@ -5,7 +5,7 @@ from typing import List, Dict, Any
 import uuid
 from fastembed import SparseTextEmbedding
 
-sparse_model = SparseTextEmbedding(model_name="Qdrant/bm25")
+sparse_model = SparseTextEmbedding(model_name="Qdrant/bm25") #Todo - For production - prithivida/Splade_PP_en_v1
 
 qdrant = QdrantClient(path=PERSIST_DIR)
 
@@ -64,6 +64,7 @@ def delete_existing_document(document_id: str) -> dict:
 
     deleted = {}
 
+    #Todo - if collection exist then only go for delete
     for collection_name in [PARENT_COLLECTION, CHILD_COLLECTION]:
 
         if not collection_exists(collection_name):
@@ -87,3 +88,16 @@ def delete_existing_document(document_id: str) -> dict:
         deleted[collection_name] = existing_count
 
     return deleted
+
+def document_exists(document_id: str) -> bool:
+    create_collections()
+
+    doc_filter = build_document_filter(document_id)
+
+    count_result = qdrant.count(
+        collection_name=CHILD_COLLECTION,
+        count_filter=doc_filter,
+        exact=True
+    )
+
+    return count_result.count > 0

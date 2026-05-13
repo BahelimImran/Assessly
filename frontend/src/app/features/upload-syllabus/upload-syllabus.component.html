@@ -41,10 +41,19 @@
     </div>
 
     <div class="tech-box">
+        <div class="info-panel rag-panel">
+          <h3 style="font-size: 18px;margin-top: 0px;margin-bottom: 10px;">🧠 Knowledge Base</h3>
+          <div *ngFor="let file of files">
+                📄 {{ file.source_file }} — {{ file.chunk_count }} chunks
+          </div>
+        </div>
+    </div>
+
+    <div class="tech-box">
 
       <div class="info-panel rag-panel">
 
-        <h3 style="font-size: 18px;">🧠 RAG Pipeline</h3>
+        <h3 style="font-size: 18px;">RAG Pipeline</h3>
 
         <!-- COMPONENT DETAILS -->
         <div class="info-section">

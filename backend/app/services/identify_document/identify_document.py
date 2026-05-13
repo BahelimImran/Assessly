@@ -4,7 +4,7 @@ from pathlib import Path
 from qdrant_client.models import Filter, FieldCondition, MatchValue
 
 from app.db.qdrant_client import qdrant
-from app.core.config import QDRANT_COLLECTION
+# from app.core.config import QDRANT_COLLECTION
 
 
 def hash_text(text: str) -> str:

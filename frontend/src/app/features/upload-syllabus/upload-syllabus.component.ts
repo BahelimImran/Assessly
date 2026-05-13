@@ -126,13 +126,29 @@ Context ranking tuned for relevance and minimal hallucination.`
     // }
   ]
 };
+  files: any;
 
 
   constructor(private http: HttpClient, private cd: ChangeDetectorRef) {}
 
   ngOnInit(): void {
     console.log(this.listOfQA)
+    this.getKnowledgeBaseFile();
+  }
 
+  getKnowledgeBaseFile(){
+    this.http.get(`${this.apiBaseUrl}/knowledge-base/files?tenant_id=default_tenant&user_id=default_user`)
+      .subscribe({
+        next: (res:any) => {
+          this.files = res.files;     
+          this.cd.detectChanges();
+        },
+        error: (err) => {
+          this.message = err?.error?.detail || '❌ Knowledge base not found';
+          // this.isUploading = false;
+          this.cd.detectChanges();
+        }
+      });
   }
 
   onFileSelected(event: Event) {
@@ -149,13 +165,14 @@ Context ranking tuned for relevance and minimal hallucination.`
     const formData = new FormData();
     formData.append('file', this.selectedFile);
 
+    this.logs.length = 0;
     this.isUploading = true;
     this.message = 'Processing document...';
 
     this.http.post(`${this.apiBaseUrl}/ingest`, formData)
       .subscribe({
         next: (ingestRes:any) => {
-          // this.message = '✅ Document indexed successfully';
+          this.message = ingestRes?.message || '';
           this.isUploading = false;
           this.isIngested = true;
           this.activeUserId = ingestRes['user_id'];
@@ -164,8 +181,8 @@ Context ranking tuned for relevance and minimal hallucination.`
           this.startLogStream();          
           this.cd.detectChanges();
         },
-        error: () => {
-          this.message = '❌ Upload failed';
+        error: (err) => {
+          this.message = err?.error?.detail || '❌ Upload failed';
           this.isUploading = false;
           this.cd.detectChanges();
         }
@@ -182,6 +199,10 @@ Context ranking tuned for relevance and minimal hallucination.`
 
       // update message with latest log
       this.message = event.data;
+
+      if(event.data === "✅ All set! You can start asking questions now."){
+        this.getKnowledgeBaseFile();
+      }
 
       this.cd.detectChanges();
     };

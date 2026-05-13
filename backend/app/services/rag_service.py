@@ -17,19 +17,19 @@ from app.db.qdrant_client import sparse_model
 from app.core.config import PERSIST_DIR, VECTOR_SIZE
 
 # from app.services.pdf_parser import parse_pdf
-from app.services.chunking.chunk_service import process_document
-from app.services.element_processor import process_elements
+# from app.services.chunking.chunk_service import process_document
+# from app.services.element_processor import process_elements
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from app.services.parsers.docling_parser import parse_pdf_with_docling, build_docling_chunks, parse_document
 # import numpy as np
 
 from app.services.identify_document.identify_document import hash_file_bytes, hash_text, clean_metadata
-from app.services.retrieval_search.bm25_search import *
+# from app.services.retrieval_search.bm25_search import *
 from app.services.retrieval_search.child_chunks_retrieval import *
 from app.services.retrieval_search.parent_chunks_retrieval import fetch_parent_chunks
-from app.services.retrieval_search.merge_vector_bm25 import *
-from app.services.retrieval_search.reranker import *
-from app.services.retrieval_search.context_compressor import *
+# from app.services.retrieval_search.merge_vector_bm25 import *
+# from app.services.retrieval_search.reranker import *
+# from app.services.retrieval_search.context_compressor import *
 from app.services.measure_confidence.calculate_confidence import *
 import uuid
 
@@ -65,7 +65,7 @@ def ingest_pdf(file_path, log):
     deleted_count = delete_existing_document(document_id)
 
     if deleted_count:
-        log(f"♻️ Existing document found. Replacing {deleted_count} old chunks...")
+        # log(f"♻️ Existing document found. Replacing {deleted_count} old chunks...")
         print(f"\n ♻️ Deleted old chunks for document_id: {document_id}")
 
     log("✔️ 📄 Parsing document structure...")
@@ -77,7 +77,7 @@ def ingest_pdf(file_path, log):
 
     # all_chunks = process_document(elements, file_path)
 
-    all_chunks = parse_document(file_path)
+    all_chunks = parse_document(file_path, log)
 
     # final_docs = []
     # final_metas = []
@@ -136,7 +136,9 @@ def ingest_pdf(file_path, log):
     
     
     # embeddings = []
+    # log("✔️ 📄 Parsing document structure...")
     # log("✔️ 🧠 Generating embeddings...")
+    # log("✔️ 📦 Storing in vector database...")
     # print("\n\n\n\n\n 🧠 Generating embeddings...")
     # print(f"\n ⚙️  [Embedding model: bge-m3]")
     # for text in final_docs:
@@ -194,6 +196,7 @@ def ingest_pdf(file_path, log):
                 payload={
                     "parent_id": parent_id,
                     "document_id": document_id,
+                    "source_file":source_file,
                     "section_title": parent_title,
                     "full_text": full_parent_text,
                     "content": parent.get("content", []),
@@ -203,25 +206,74 @@ def ingest_pdf(file_path, log):
         )
 
     
-    # childs qdrant points
+    # # childs qdrant points
+    # childs_points = []
+
+    # # Embedding in-progress
+    # log("✔️ 🧠 Generating dense(semantics) and parse(keywords) embeddings...")
+    # for child in all_chunks["child_chunks"]:
+
+    #     child_id = child.get("child_id") or str(uuid.uuid4())
+    #     child["child_id"] = child_id
+
+    #     text_for_embedding = child.get("chunk_text", "")
+    #     embedding = get_embedding(text_for_embedding) # Todo-later change with batch embedding - Huge speed improvement
+    #     sparse_embedding = list(sparse_model.embed([text_for_embedding]))[0]
+
+    #     childs_points.append(
+    #         PointStruct(
+    #             id=child_id,
+    #             # vector=embedding,
+    #             vector={
+    #                 "dense": embedding,
+    #                 "sparse": {
+    #                     "indices": sparse_embedding.indices.tolist(),
+    #                     "values": sparse_embedding.values.tolist()
+    #                 }
+    #             },
+    #             payload={
+    #                 "user_id": user_id or "default_user",
+    #                 "child_id": child_id,
+    #                 "parent_id": child.get("parent_id"),
+    #                 "document_id": document_id,
+    #                 "section_title": child.get("section_title", ""),
+    #                 "chunk_text": text_for_embedding,
+    #                 "chunk_type": child.get("chunk_type", "paragraph"),
+    #                 "content_type": "child_chunk"
+    #             }
+    #         )
+    #     )
+    
+    child_chunks = [
+        child for child in all_chunks["child_chunks"]
+        if child.get("chunk_text", "").strip()
+    ]
+
+    texts = [child["chunk_text"] for child in child_chunks]
+
+    log(f"✔️ 🧠 Generating batch embeddings for {len(texts)} child chunks...")
+
+    dense_embeddings = get_embeddings_batch(texts)
+
+    sparse_embeddings = list(sparse_model.embed(texts))
+
     childs_points = []
 
-    # Embedding in-progress
-    for child in all_chunks["child_chunks"]:
-
+    for child, dense_embedding, sparse_embedding in zip(
+        child_chunks,
+        dense_embeddings,
+        sparse_embeddings
+    ):
         child_id = child.get("child_id") or str(uuid.uuid4())
         child["child_id"] = child_id
 
         text_for_embedding = child.get("chunk_text", "")
-        embedding = get_embedding(text_for_embedding) # Todo-later change with batch embedding - Huge speed improvement
-        sparse_embedding = list(sparse_model.embed([text_for_embedding]))[0]
 
         childs_points.append(
             PointStruct(
                 id=child_id,
-                # vector=embedding,
                 vector={
-                    "dense": embedding,
+                    "dense": dense_embedding,
                     "sparse": {
                         "indices": sparse_embedding.indices.tolist(),
                         "values": sparse_embedding.values.tolist()
@@ -232,6 +284,7 @@ def ingest_pdf(file_path, log):
                     "child_id": child_id,
                     "parent_id": child.get("parent_id"),
                     "document_id": document_id,
+                    "source_file":source_file,
                     "section_title": child.get("section_title", ""),
                     "chunk_text": text_for_embedding,
                     "chunk_type": child.get("chunk_type", "paragraph"),
@@ -239,21 +292,31 @@ def ingest_pdf(file_path, log):
                 }
             )
         )
-    
-
+            
 
     # qdrant store
+    log("✔️ 📦 Storing vectors(parents, childs) in database...")
     create_collections()
 
-    qdrant.upsert(
-        collection_name=PARENT_COLLECTION,
-        points=parents_points
-    )
+    # qdrant.upsert(
+    #     collection_name=PARENT_COLLECTION,
+    #     points=parents_points
+    # )
+    for batch in batched(parents_points, batch_size=64):
+        qdrant.upsert(
+            collection_name=PARENT_COLLECTION,
+            points=batch
+        )    
 
-    qdrant.upsert(
-        collection_name=CHILD_COLLECTION,
-        points=childs_points
-    )
+    # qdrant.upsert(
+    #     collection_name=CHILD_COLLECTION,
+    #     points=childs_points
+    # )
+    for batch in batched(childs_points, batch_size=64):
+        qdrant.upsert(
+            collection_name=CHILD_COLLECTION,
+            points=batch
+        )
 
     log("✔️ ✅ Ingestion complete...")
     print("\n\n\n\n\n ✅ Ingestion complete")
@@ -270,6 +333,9 @@ def ingest_pdf(file_path, log):
         "replaced_existing_chunks": deleted_count
     }
 
+def batched(items, batch_size=64):
+    for i in range(0, len(items), batch_size):
+        yield items[i:i + batch_size]
 # ---------------- EMBEDDING ----------------
 def get_embedding(text: str) -> List[float]:
     
@@ -285,6 +351,56 @@ def get_embedding(text: str) -> List[float]:
         return data.get("embedding") or data.get("embeddings", [[]])[0]
     raise ValueError(f"Unsupported embedding provider: {EMBED_PROVIDER}")
 
+# def get_embeddings_batch(texts: list[str]) -> list[list[float]]:
+def get_embeddings_batch(texts, batch_size=8):
+    if EMBED_PROVIDER == "ollama":
+        all_embeddings = []
+
+        for i in range(0, len(texts), batch_size):
+            batch = texts[i:i + batch_size]
+
+            response = requests.post(
+                f"{OLLAMA_BASE_URL}/api/embed",
+                json={
+                    "model": EMBED_MODEL,
+                    "input": batch
+                },
+                timeout=300
+            )
+
+            response.raise_for_status()
+            data = response.json()
+
+            all_embeddings.extend(data["embeddings"])
+
+        if not all_embeddings:
+            raise RuntimeError("Batch embedding failed. Empty embeddings returned.")
+
+        return all_embeddings
+
+    raise ValueError(f"Unsupported embedding provider: {EMBED_PROVIDER}")
+
+# def get_embeddings_batch(texts, batch_size=8):
+#     all_embeddings = []
+
+#     for i in range(0, len(texts), batch_size):
+#         batch = texts[i:i + batch_size]
+
+#         response = requests.post(
+#             f"{OLLAMA_BASE_URL}/api/embed",
+#             json={
+#                 "model": EMBED_MODEL,
+#                 "input": batch
+#             },
+#             timeout=300
+#         )
+
+#         response.raise_for_status()
+#         data = response.json()
+
+#         all_embeddings.extend(data["embeddings"])
+
+#     return all_embeddings
 
 # def cosine_similarity(emb1: List[float], emb2: List[float]) -> float:
     
@@ -438,7 +554,7 @@ def get_relevant_chunks(question: str):
 
     # return 
 
-def hybrid_child_search(where_filter):
+def update_where_filter_with_child_chunk(where_filter):
     child_filter = {
         **(where_filter or {}),
         "content_type": "child_chunk"
@@ -450,7 +566,7 @@ def query_rag(query: str, filters: dict | None = None):
     print("\n ⚙️ [Hybrid retrieval: Vector top 10 + BM25 top 10]")
 
     build_filter = build_where_filter(filters)
-    where_filter = hybrid_child_search(build_filter)
+    where_filter = update_where_filter_with_child_chunk(build_filter)
 
     # vector_results = vector_search(query, top_k=20)
     # bm25_results = bm25_search(query, top_k=20)

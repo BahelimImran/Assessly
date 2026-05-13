@@ -8,7 +8,12 @@ import os
 # CHROMA_COLLECTION = "assessly_docs"
 # PERSIST_DIR = "./chromadb"
 
-QDRANT_COLLECTION = "assessly_qdrant_docs"
+MAX_UPLOAD_SIZE_MB = 25
+MAX_UPLOAD_SIZE_BYTES = MAX_UPLOAD_SIZE_MB * 1024 * 1024
+MAX_PDF_PAGES = 100
+UPLOAD_DIR = "uploads"
+
+# QDRANT_COLLECTION = "assessly_qdrant_docs"
 PARENT_COLLECTION = "parent_chunks"
 
 CHILD_COLLECTION = "child_chunks"

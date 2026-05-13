@@ -8,7 +8,7 @@ backend/app/db/__pycache__/
 backend/app/models/__pycache__/
 backend/app/services/__pycache__/
 backend/*.egg-info/
-backend/chromadb/
+backend/qdrant_db/
 backend/uploads/
 backend/.env
 
@@ -19,5 +19,6 @@ frontend/.angular/
 frontend/.vscode/
 
 #General
+.vscode
 .env
 *.log
