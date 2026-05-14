@@ -5,6 +5,30 @@
     <h2>🧠 Assessly AI</h2>
     <p class="tagline">RAG Knowledge Assistant</p>
 
+        <!-- User Isolation Panel -->
+    <div class="user-panel">
+      <label for="userId">User ID / Username</label>
+
+      <input
+        id="userId"
+        type="text"
+        [(ngModel)]="userId"
+        placeholder="Enter username, e.g. imran"
+        class="user-input"
+      />
+
+      <button
+        type="button"
+        (click)="saveUserId()"
+        [disabled]="!userId.trim()"
+      >
+        Save User
+      </button>
+
+      <p *ngIf="activeUserId" class="active-user">
+        Active user: <strong>{{ activeUserId }}</strong>
+      </p>
+    </div>
     <div class="upload-box">
       <h4 style="color: #10a37f;display: flex;justify-content: center;font-size: 18px;">Best results with text-based
         PDFs.<br>Scanned files may not work accurately.</h4>

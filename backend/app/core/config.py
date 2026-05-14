@@ -25,3 +25,24 @@ TOP_K = 5
 
 os.environ["ANONYMIZED_TELEMETRY"] = "False"
 # os.environ["CHROMA_TELEMETRY"] = "FALSE"
+
+# REDIS - Job manager and SSE
+QDRANT_URL = os.getenv(
+    "QDRANT_URL",
+    "http://localhost:6333"
+)
+
+QDRANT_COLLECTION = os.getenv(
+    "QDRANT_COLLECTION",
+    "assessly"
+)
+
+REDIS_URL = os.getenv(
+    "REDIS_URL",
+    "redis://localhost:6379/0"
+)
+
+FRONTEND_URL = os.getenv(
+    "FRONTEND_URL",
+    "http://localhost:4200"
+)

@@ -3,6 +3,8 @@ from qdrant_client.models import Filter, FieldCondition, MatchValue
 
 from app.db.qdrant_client import qdrant
 from app.core.config import CHILD_COLLECTION
+from app.models.schema import QueryRequest
+
 
 router = APIRouter()
 
@@ -13,6 +15,7 @@ def list_ingested_files(
     user_id: str = "default_user"
 ):
     try:
+        print(f"knowledge api user-id :{user_id}")
         points, _ = qdrant.scroll(
             collection_name=CHILD_COLLECTION,
             scroll_filter=Filter(

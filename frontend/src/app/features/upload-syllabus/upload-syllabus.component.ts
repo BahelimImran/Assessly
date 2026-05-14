@@ -22,6 +22,7 @@ export class UploadSyllabusComponent implements OnInit{
   apiBaseUrl = environment.apiBaseUrl;
 
   activeUserId: string = '';
+  userId = '';
 
   selectedFile: File | null = null;
   message = '';
@@ -129,15 +130,32 @@ Context ranking tuned for relevance and minimal hallucination.`
   files: any;
 
 
+
   constructor(private http: HttpClient, private cd: ChangeDetectorRef) {}
 
   ngOnInit(): void {
     console.log(this.listOfQA)
-    this.getKnowledgeBaseFile();
+  // const savedUserId = localStorage.getItem('assessly_user_id');
+
+  // if (savedUserId) {
+  //   this.userId = savedUserId;
+  //   this.activeUserId = savedUserId;
+  // }
+
+    
   }
+  saveUserId(): void {
+  const cleanUserId = this.userId.trim();
+
+  if (!cleanUserId) return;
+
+  // localStorage.setItem('assessly_user_id', cleanUserId);
+  this.activeUserId = cleanUserId;
+  this.getKnowledgeBaseFile();
+}
 
   getKnowledgeBaseFile(){
-    this.http.get(`${this.apiBaseUrl}/knowledge-base/files?tenant_id=default_tenant&user_id=default_user`)
+    this.http.get(`${this.apiBaseUrl}/knowledge-base/files?tenant_id=default_tenant&user_id=${this.activeUserId}`)
       .subscribe({
         next: (res:any) => {
           this.files = res.files;     
@@ -164,6 +182,7 @@ Context ranking tuned for relevance and minimal hallucination.`
 
     const formData = new FormData();
     formData.append('file', this.selectedFile);
+    formData.append('user_id', this.activeUserId);
 
     this.logs.length = 0;
     this.isUploading = true;
@@ -175,10 +194,11 @@ Context ranking tuned for relevance and minimal hallucination.`
           this.message = ingestRes?.message || '';
           this.isUploading = false;
           this.isIngested = true;
-          this.activeUserId = ingestRes['user_id'];
+          // this.activeUserId = ingestRes['user_id'];
+          
           
       // ✅ Start listening to logs
-          this.startLogStream();          
+          this.startLogStream(ingestRes.job_id);          
           this.cd.detectChanges();
         },
         error: (err) => {
@@ -188,8 +208,8 @@ Context ranking tuned for relevance and minimal hallucination.`
         }
       });
   }
-  startLogStream() {
-    const eventSource = new EventSource(`${this.apiBaseUrl}/ingest/stream`);
+  startLogStream(job_id:string) {
+    const eventSource = new EventSource(`${this.apiBaseUrl}/ingest/stream/${job_id}`);
 
     eventSource.onmessage = (event) => {
       console.log(event.data);

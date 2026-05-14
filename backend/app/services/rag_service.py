@@ -35,7 +35,7 @@ import uuid
 
 
 # ---------------- INGEST ----------------
-def ingest_pdf(file_path, log):
+def ingest_pdf(file_path, user_id, log):
     print("\n\n\n 📥 Ingesting document...")
     print(f"\n ⚙️  [File: {file_path}]")
     
@@ -44,7 +44,7 @@ def ingest_pdf(file_path, log):
     created_at = datetime.now(timezone.utc).isoformat()
 
     upload_session_id = str(uuid.uuid4())
-    user_id = "default_user"
+    user_id = user_id
 
 
     # existing = collection.get(
@@ -68,7 +68,7 @@ def ingest_pdf(file_path, log):
         # log(f"♻️ Existing document found. Replacing {deleted_count} old chunks...")
         print(f"\n ♻️ Deleted old chunks for document_id: {document_id}")
 
-    log("✔️ 📄 Parsing document structure...")
+    log(f"✔️ 📄 Parsing document structure...{user_id}")
     print("\n\n\n\n\n 📄 Parsing document structure...")
     print(f"\n ⚙️  [Hi-res parsing + layout detection]")
     
@@ -295,7 +295,7 @@ def ingest_pdf(file_path, log):
             
 
     # qdrant store
-    log("✔️ 📦 Storing vectors(parents, childs) in database...")
+    log(f"✔️ 📦 Storing vectors(parents, childs) in database...{user_id}")
     create_collections()
 
     # qdrant.upsert(

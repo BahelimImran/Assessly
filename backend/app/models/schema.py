@@ -11,3 +11,10 @@ class QueryRequest(BaseModel):
     chunk_type: Optional[str] = None
     upload_session_id: Optional[str] = None
     user_id: Optional[str] = "default_user"
+
+class JobStatus(BaseModel):
+    job_id: str
+    status: str
+    progress: int
+    current_step: str
+    error: Optional[str] = None
