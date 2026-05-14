@@ -1,9 +1,9 @@
-from fastapi import APIRouter, HTTPException, UploadFile, File, Form
+from fastapi import APIRouter, HTTPException, Request, UploadFile, File, Form
 from sse_starlette.sse import EventSourceResponse
 import os
 import asyncio
 import uuid
-from app.services.ingest.job_manager import job_manager
+# from app.services.ingest.job_manager import job_manager
 
 from app.services.rag_service import ingest_pdf
 from app.core.config import UPLOAD_DIR
@@ -15,6 +15,10 @@ from app.services.upload_validator import (
 )
 from app.db.qdrant_client import document_exists
 from app.models.schema import QueryRequest
+
+import json
+from app.core.redis import redis
+from app.services.job_manager import JobManager
 
 
 
@@ -45,24 +49,25 @@ os.makedirs(UPLOAD_DIR, exist_ok=True)
 
 #     return result
 
-async def ingest_with_logs(job_id: str, user_id: str, file_path: str ):
-    loop = asyncio.get_event_loop()
+async def ingest_with_logs(job_id: str, file_path: str, user_id: str ):
+    # loop = asyncio.get_event_loop()
+    loop = asyncio.get_running_loop()
 
-    job_manager.update_status(
-        job_id,
-        status="processing",
-        progress=5,
-        current_step="Starting ingestion"
+    await JobManager.update_job(
+    job_id,
+    status="processing",
+    progress=10
     )
     # Todo : also pass progress number
-    def log(message: str):
+    def log(message: str, progress: int = 10):
         asyncio.run_coroutine_threadsafe(
-            job_manager.push_log(job_id, message),
+            JobManager.publish_log(job_id, message, progress),
             loop
         )
 
     try:
-        await job_manager.push_log(job_id, f"✔️ 📥 Ingesting started...{user_id}")
+        # await job_manager.push_log(job_id, f"✔️ 📥 Ingesting started...{user_id}")
+        await JobManager.publish_log(job_id, f"✔️ 📥 Ingesting started...{user_id}", 60)
 
         result = await loop.run_in_executor(
             None,
@@ -72,30 +77,32 @@ async def ingest_with_logs(job_id: str, user_id: str, file_path: str ):
             log
         )
 
-        job_manager.update_status(
+        await JobManager.update_job(
             job_id,
             status="completed",
             progress=100,
-            current_step="Completed"
         )
 
-        await job_manager.push_log(
+        await JobManager.publish_log(
             job_id,
-            f"✅ All set! You can start asking questions now.{user_id}"
+            f"✅ All set! You can start asking questions now.{user_id}",
+            100
         )
 
         return result
 
     except Exception as e:
-        job_manager.update_status(
+        await JobManager.update_job(
             job_id,
             status="failed",
+            progress=0,
             error=str(e)
         )
 
-        await job_manager.push_log(
+        await JobManager.publish_log(
             job_id,
-            f"❌ Failed: {str(e)}"
+            f"❌ Failed: {str(e)}",
+            0
         )
 
 
@@ -129,32 +136,62 @@ async def upload_and_ingest(
                 "message": "This PDF already exists in knowledge base.",
                 "document_id": document_id,
                 "file": file.filename,
+                "total_pages":page_count
             }
 
-        # asyncio.create_task(ingest_with_logs(file_path))
-        job_id = str(uuid.uuid4())
+        # # asyncio.create_task(ingest_with_logs(file_path))
+        # job_id = str(uuid.uuid4())
 
-        job_manager.create_job(job_id)
+        # job_manager.create_job(job_id)
 
-        asyncio.create_task(
-            ingest_with_logs(job_id, user_id, file_path)
-        )        
+        # asyncio.create_task(
+        #     ingest_with_logs(job_id, user_id, file_path)
+        # )        
 
+        # # return {
+        # #     "status": "accepted",
+        # #     "message": "PDF uploaded. Ingestion started.",
+        # #     "file": file.filename,
+        # #     "document_id": document_id,
+        # #     "page_count": page_count,
+        # #     "user_id": "default_user",
+        # # }
         # return {
-        #     "status": "accepted",
-        #     "message": "PDF uploaded. Ingestion started.",
+        #     "job_id": job_id,
+        #     "status": "queued",
+        #     "message": "Ingestion started",
         #     "file": file.filename,
         #     "document_id": document_id,
-        #     "page_count": page_count,
-        #     "user_id": "default_user",
+        #     "page_count": page_count
         # }
+
+        job_id = str(uuid.uuid4())
+
+        # upload_dir = Path("uploads")
+        # upload_dir.mkdir(exist_ok=True)
+
+        # file_path = upload_dir / file.filename
+
+        # with open(file_path, "wb") as f:
+        #     shutil.copyfileobj(file.file, f)
+
+        await JobManager.create_job(
+            job_id=job_id,
+            user_id=user_id,
+            file_name=file.filename
+        )
+
+        asyncio.create_task(
+            ingest_with_logs(
+                job_id,
+                str(file_path),
+                user_id
+            )
+        )
+
         return {
             "job_id": job_id,
-            "status": "queued",
-            "message": "Ingestion started",
-            "file": file.filename,
-            "document_id": document_id,
-            "page_count": page_count
+            "status": "queued"
         }
 
     except HTTPException:
@@ -169,18 +206,27 @@ async def upload_and_ingest(
 @router.get("/jobs/{job_id}")
 async def get_job_status(job_id: str):
 
-    job = job_manager.get_job(job_id)
+    # job = job_manager.get_job(job_id)
+
+    # if not job:
+    #     raise HTTPException(status_code=404, detail="Job not found")
+
+    # return {
+    #     "job_id": job_id,
+    #     "status": job["status"],
+    #     "progress": job["progress"],
+    #     "current_step": job["current_step"],
+    #     "error": job["error"]
+    # }
+
+    job = await JobManager.get_job(job_id)
 
     if not job:
-        raise HTTPException(status_code=404, detail="Job not found")
-
-    return {
-        "job_id": job_id,
-        "status": job["status"],
-        "progress": job["progress"],
-        "current_step": job["current_step"],
-        "error": job["error"]
-    }
+        raise HTTPException(
+            status_code=404,
+            detail="Job not found"
+        )
+    return job
 
 
 # # 🌊 SSE endpoint to stream logs
@@ -193,25 +239,67 @@ async def get_job_status(job_id: str):
 
 #     return EventSourceResponse(event_generator())
 
+# @router.get("/stream/{job_id}")
+# async def stream_logs(job_id: str):
+
+#     job = job_manager.get_job(job_id)
+
+#     if not job:
+#         raise HTTPException(status_code=404, detail="Job not found")
+
+#     async def event_generator():
+
+#         while True:
+#             message = await job["queue"].get()
+
+#             yield {
+#                 "event": "message",
+#                 "data": message
+#             }
+
+#             if job["status"] in ["completed", "failed"]:
+#                 break
+
+#     return EventSourceResponse(event_generator())
+
 @router.get("/stream/{job_id}")
-async def stream_logs(job_id: str):
-
-    job = job_manager.get_job(job_id)
-
-    if not job:
-        raise HTTPException(status_code=404, detail="Job not found")
+async def stream_logs(job_id: str, request: Request):
 
     async def event_generator():
 
-        while True:
-            message = await job["queue"].get()
+        pubsub = redis.pubsub()
 
-            yield {
-                "event": "message",
-                "data": message
-            }
+        await pubsub.subscribe(f"job:{job_id}")
 
-            if job["status"] in ["completed", "failed"]:
-                break
+        try:
+
+            while True:
+
+                if await request.is_disconnected():
+                    break
+
+                message = await pubsub.get_message(
+                    ignore_subscribe_messages=True,
+                    timeout=5
+                )
+
+                if message:
+                    yield {
+                        "event": "message",
+                        "data": message["data"]
+                    }
+
+                else:
+                    yield {
+                        "event": "ping",
+                        "data": "keepalive"
+                    }
+
+                await asyncio.sleep(0.1)
+
+        finally:
+            await pubsub.unsubscribe(f"job:{job_id}")
+            await pubsub.close()
 
     return EventSourceResponse(event_generator())
+

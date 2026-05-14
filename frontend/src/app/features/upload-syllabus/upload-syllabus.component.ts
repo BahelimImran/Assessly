@@ -212,15 +212,15 @@ Context ranking tuned for relevance and minimal hallucination.`
     const eventSource = new EventSource(`${this.apiBaseUrl}/ingest/stream/${job_id}`);
 
     eventSource.onmessage = (event) => {
-      console.log(event.data);
+      console.log(JSON.parse(event.data).message);
 
       // store logs in array (for UI)
-      this.logs.push(event.data);
+      this.logs.push(JSON.parse(event.data).message);
 
       // update message with latest log
-      this.message = event.data;
+      this.message = JSON.parse(event.data).message;
 
-      if(event.data === "✅ All set! You can start asking questions now."){
+      if(JSON.parse(event.data).message === "✅ All set! You can start asking questions now."){
         this.getKnowledgeBaseFile();
       }
 

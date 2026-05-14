@@ -3,12 +3,16 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.api import ingest, query
 from app.api.knowledge_base import router as knowledge_base_router
+from app.core.config import FRONTEND_URL
 
-app = FastAPI()
+app = FastAPI(
+    title="Assessly AI",
+    version="1.0.0"
+)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:4200"],
+    allow_origins=[FRONTEND_URL],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"]
