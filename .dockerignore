@@ -2,34 +2,59 @@
 .git
 .gitignore
 
-# Environment
+# Environment, secrets, and private local files
 .env
+.env.*
 *.env
+secrets/
+credentials/
+private/
+private_documents/
+important_details.md
 
-# Logs
-logs
+# Logs and local runtime output
+logs/
 *.log
+*.pid
+uploads/
+qdrant_data/
 
-# OS / Editor
-.vscode
-.idea
+# OS / editor
+.vscode/
+.idea/
 .DS_Store
+Thumbs.db
 
-# Backend heavy files
-backend/venv
-backend/uploads
-backend/db
+# Python
+venv/
+.venv/
+__pycache__/
+*.py[cod]
+*.pyo
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+app.zip
+
+# Backend local runtime data
+backend/venv/
+backend/.venv/
+backend/uploads/
+backend/qdrant_data/
+backend/qdrant_db/
+backend/chromadb/
+backend/app.zip
 
 # Frontend
-frontend/node_modules
-frontend/dist
-frontend/.angular
-frontend/.vscode
+node_modules/
+frontend/node_modules/
+frontend/dist/
+frontend/.angular/
+frontend/coverage/
+frontend/.vscode/
 
-# Docker noise
-Dockerfile
-docker-compose.yml
-
-# Build artifacts
-*.pyc
-__pycache__
+# Docker/build cache noise
+.dockerignore
+docker-compose.override.yml

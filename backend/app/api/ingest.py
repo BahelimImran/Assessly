@@ -20,6 +20,8 @@ import json
 from app.core.redis import redis
 from app.services.job_manager import JobManager
 
+from app.services.job_queue import enqueue_job
+
 
 
 router = APIRouter()
@@ -181,21 +183,29 @@ async def upload_and_ingest(
             file_name=file.filename
         )
 
-        asyncio.create_task(
-            ingest_with_logs(
-                job_id,
-                str(file_path),
-                user_id
-            )
-        )
+        # asyncio.create_task(
+        #     ingest_with_logs(
+        #         job_id,
+        #         str(file_path),
+        #         user_id
+        #     )
+        # )
+
+        enqueue_job({
+            "job_id": job_id,
+            "file_path": file_path,
+            "user_id": user_id
+        })        
 
         return {
+            "message": "Upload accepted. Ingestion started.",
             "job_id": job_id,
-            "status": "queued"
+            "file": file.filename,
+            "user_id": user_id
         }
 
-    except HTTPException:
-        raise
+    # except HTTPException:
+    #     raise
 
     except Exception as e:
         raise HTTPException(
@@ -262,6 +272,8 @@ async def get_job_status(job_id: str):
 
 #     return EventSourceResponse(event_generator())
 
+from app.services.redis_client import redis_client
+
 @router.get("/stream/{job_id}")
 async def stream_logs(job_id: str, request: Request):
 
@@ -269,7 +281,8 @@ async def stream_logs(job_id: str, request: Request):
 
         pubsub = redis.pubsub()
 
-        await pubsub.subscribe(f"job:{job_id}")
+        # await pubsub.subscribe(f"job:{job_id}")
+        pubsub.subscribe(f"logs:{job_id}")
 
         try:
 
@@ -278,7 +291,12 @@ async def stream_logs(job_id: str, request: Request):
                 if await request.is_disconnected():
                     break
 
-                message = await pubsub.get_message(
+                # message = await pubsub.get_message(
+                #     ignore_subscribe_messages=True,
+                #     timeout=5
+                # )
+
+                message = pubsub.get_message(
                     ignore_subscribe_messages=True,
                     timeout=5
                 )

@@ -16,7 +16,7 @@ def query(req: QueryRequest):
             "section": req.section,
             "chunk_type": req.chunk_type,
             "upload_session_id": req.upload_session_id,
-            "user_id": req.user_id or "default_user",
+            "user_id": req.user_id,
         }
 
         result = generate_answer(req.question, filters)

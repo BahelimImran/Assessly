@@ -11,8 +11,8 @@ router = APIRouter()
 
 @router.get("/files")
 def list_ingested_files(
-    tenant_id: str = "default_tenant",
-    user_id: str = "default_user"
+    tenant_id: str,
+    user_id: str
 ):
     try:
         print(f"knowledge api user-id :{user_id}")

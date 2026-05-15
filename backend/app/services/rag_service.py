@@ -1,11 +1,5 @@
 import requests
-from dotenv import load_dotenv; load_dotenv()
-import os; 
-EMBED_PROVIDER = os.getenv("EMBED_PROVIDER")
-EMBED_MODEL = os.getenv("EMBED_MODEL")
-LLM_PROVIDER = os.getenv("LLM_PROVIDER")
-LLM_MODEL = os.getenv("LLM_MODEL")
-OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL")
+import os
 from typing import List
 from datetime import datetime, timezone
 
@@ -35,7 +29,7 @@ import uuid
 
 
 # ---------------- INGEST ----------------
-def ingest_pdf(file_path, user_id, log):
+def ingest_pdf(file_path, log, user_id):
     print("\n\n\n 📥 Ingesting document...")
     print(f"\n ⚙️  [File: {file_path}]")
     
@@ -280,7 +274,7 @@ def ingest_pdf(file_path, user_id, log):
                     }
                 },
                 payload={
-                    "user_id": user_id or "default_user",
+                    "user_id": user_id,
                     "child_id": child_id,
                     "parent_id": child.get("parent_id"),
                     "document_id": document_id,
@@ -455,7 +449,7 @@ def get_embeddings_batch(texts, batch_size=8):
 def build_where_filter(filters: dict | None = None):
     filters = filters or {}
 
-    user_id = filters.get("user_id") or "default_user"
+    user_id = filters.get("user_id")
     document_id = filters.get("document_id")
     upload_session_id = filters.get("upload_session_id")
     file_name = filters.get("file_name")

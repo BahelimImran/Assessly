@@ -10,7 +10,7 @@ class QueryRequest(BaseModel):
     section: Optional[str] = None
     chunk_type: Optional[str] = None
     upload_session_id: Optional[str] = None
-    user_id: Optional[str] = "default_user"
+    user_id: Optional[str] = None
 
 class JobStatus(BaseModel):
     job_id: str

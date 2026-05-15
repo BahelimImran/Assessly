@@ -1,0 +1,127 @@
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    command: >
+      sh -c "gunicorn app.main:app
+      --worker-class uvicorn.workers.UvicornWorker
+      --workers $${WEB_CONCURRENCY:-4}
+      --bind 0.0.0.0:8000
+      --timeout 300
+      --access-logfile -
+      --error-logfile -"
+    environment:
+      FRONTEND_URL: ${FRONTEND_URL:-http://localhost:4200}
+      API_DOMAIN: ${API_DOMAIN:-http://localhost:8000}
+      QDRANT_URL: ${QDRANT_URL:-http://qdrant:6333}
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
+      REDIS_HOST: ${REDIS_HOST:-redis}
+      REDIS_PORT: ${REDIS_PORT:-6379}
+      REDIS_DB: ${REDIS_DB:-0}
+      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://host.docker.internal:11434}
+      EMBED_PROVIDER: ${EMBED_PROVIDER:-ollama}
+      EMBED_MODEL: ${EMBED_MODEL:-bge-m3}
+      LLM_PROVIDER: ${LLM_PROVIDER:-ollama}
+      LLM_MODEL: ${LLM_MODEL:-qwen2.5:7b}
+      UPLOAD_DIR: /app/uploads
+      WEB_CONCURRENCY: ${WEB_CONCURRENCY:-4}
+    depends_on:
+      redis:
+        condition: service_healthy
+      qdrant:
+        condition: service_healthy
+    ports:
+      - "${BACKEND_PORT:-8000}:8000"
+    volumes:
+      - uploads_storage:/app/uploads
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8000/', timeout=5)\""]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        API_BASE_URL: ${API_BASE_URL:-http://localhost:8000}
+    depends_on:
+      backend:
+        condition: service_healthy
+    ports:
+      - "${FRONTEND_PORT:-4200}:4200"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "node -e \"require('http').get('http://localhost:4200', r => process.exit(r.statusCode < 500 ? 0 : 1)).on('error', () => process.exit(1))\""]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+
+  worker:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    command: python -m app.worker
+    environment:
+      QDRANT_URL: ${QDRANT_URL:-http://qdrant:6333}
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
+      REDIS_HOST: ${REDIS_HOST:-redis}
+      REDIS_PORT: ${REDIS_PORT:-6379}
+      REDIS_DB: ${REDIS_DB:-0}
+      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://host.docker.internal:11434}
+      EMBED_PROVIDER: ${EMBED_PROVIDER:-ollama}
+      EMBED_MODEL: ${EMBED_MODEL:-bge-m3}
+      LLM_PROVIDER: ${LLM_PROVIDER:-ollama}
+      LLM_MODEL: ${LLM_MODEL:-qwen2.5:7b}
+      UPLOAD_DIR: /app/uploads
+    depends_on:
+      redis:
+        condition: service_healthy
+      qdrant:
+        condition: service_healthy
+    volumes:
+      - uploads_storage:/app/uploads
+    restart: unless-stopped
+    scale: ${WORKER_REPLICAS:-2}
+    deploy:
+      replicas: ${WORKER_REPLICAS:-2}
+
+  redis:
+    image: redis:7
+    command: redis-server --appendonly yes
+    ports:
+      - "${REDIS_PORT_PUBLISHED:-6379}:6379"
+    volumes:
+      - redis_data:/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 10s
+
+  qdrant:
+    image: qdrant/qdrant:v1.14.1
+    ports:
+      - "${QDRANT_HTTP_PORT:-6333}:6333"
+      - "${QDRANT_GRPC_PORT:-6334}:6334"
+    volumes:
+      - qdrant_storage:/qdrant/storage
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider http://localhost:6333/healthz || curl -f http://localhost:6333/healthz || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+
+volumes:
+  uploads_storage:
+  redis_data:
+  qdrant_storage:

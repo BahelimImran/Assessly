@@ -1,4 +1,4 @@
-from app.core.config import PERSIST_DIR, PARENT_COLLECTION, CHILD_COLLECTION, VECTOR_SIZE
+from app.core.config import PARENT_COLLECTION, CHILD_COLLECTION, QDRANT_URL
 from qdrant_client import QdrantClient
 from qdrant_client.models import Distance, VectorParams, SparseVectorParams, PointStruct, Filter, FieldCondition, MatchValue
 from typing import List, Dict, Any
@@ -7,7 +7,7 @@ from fastembed import SparseTextEmbedding
 
 sparse_model = SparseTextEmbedding(model_name="Qdrant/bm25") #Todo - For production - prithivida/Splade_PP_en_v1
 
-qdrant = QdrantClient(path=PERSIST_DIR)
+qdrant = QdrantClient(url=QDRANT_URL)
 
 def create_collections():
     existing = [c.name for c in qdrant.get_collections().collections]

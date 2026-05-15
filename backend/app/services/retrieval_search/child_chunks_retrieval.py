@@ -12,13 +12,6 @@ from app.core.config import *
 import requests
 from typing import List, Dict, Any
 import numpy as np
-from dotenv import load_dotenv; load_dotenv()
-import os; 
-EMBED_PROVIDER = os.getenv("EMBED_PROVIDER")
-EMBED_MODEL = os.getenv("EMBED_MODEL")
-LLM_PROVIDER = os.getenv("LLM_PROVIDER")
-LLM_MODEL = os.getenv("LLM_MODEL")
-OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL")
 
 
 from fastembed import SparseTextEmbedding

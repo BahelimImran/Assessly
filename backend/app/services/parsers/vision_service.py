@@ -1,11 +1,9 @@
 import base64
 import requests
-from dotenv import load_dotenv; load_dotenv()
-import os; 
 from pathlib import Path
 from typing import List, Dict, Any
-VISION_MODEL = os.getenv("VISION_MODEL")
-OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL")
+
+from app.core.config import OLLAMA_BASE_URL, VISION_MODEL
 
 # OLLAMA_BASE_URL = "http://localhost:11434"
 # VISION_MODEL = "qwen2.5vl:3b"
