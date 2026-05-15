@@ -1,20 +1,30 @@
-from qdrant_client.models import Filter, FieldCondition, MatchAny
+from qdrant_client.models import Filter, FieldCondition, MatchAny, MatchValue
 
 from app.db.qdrant_client import qdrant
 from app.core.config import PARENT_COLLECTION
 
 
-def fetch_parent_chunks(parent_ids: list[str]) -> list[dict]:
+def fetch_parent_chunks(parent_ids: list[str], user_id: str | None = None) -> list[dict]:
     if not parent_ids:
         return []
 
-    qdrant_filter = Filter(
-        must=[
+    must_conditions = [
+        FieldCondition(
+            key="parent_id",
+            match=MatchAny(any=parent_ids)
+        )
+    ]
+
+    if user_id:
+        must_conditions.append(
             FieldCondition(
-                key="parent_id",
-                match=MatchAny(any=parent_ids)
+                key="user_id",
+                match=MatchValue(value=user_id)
             )
-        ]
+        )
+
+    qdrant_filter = Filter(
+        must=must_conditions
     )
 
     points, _ = qdrant.scroll(
@@ -38,6 +48,9 @@ def fetch_parent_chunks(parent_ids: list[str]) -> list[dict]:
             "content": payload.get("full_text", ""),
             "section_title": payload.get("section_title", ""),
             "document_id": payload.get("document_id"),
+            "source_file": payload.get("source_file"),
+            "user_id": payload.get("user_id"),
+            "upload_session_id": payload.get("upload_session_id"),
             "payload": payload,
         }
 

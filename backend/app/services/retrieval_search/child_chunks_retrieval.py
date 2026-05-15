@@ -42,7 +42,7 @@ def get_embedding(text: str) -> List[float]:
 
 def build_qdrant_filter(where_filter: dict | None = None) -> Filter | None:
     """
-    Convert simple Chroma-style filter into Qdrant filter.
+    Convert a flat payload filter into a Qdrant filter.
     Example:
     {"document_id": "abc"} 
     becomes Qdrant FieldCondition.
@@ -54,12 +54,18 @@ def build_qdrant_filter(where_filter: dict | None = None) -> Filter | None:
     must_conditions = []
 
     for key, value in where_filter.items():
+        if value in [None, ""]:
+            continue
+
         must_conditions.append(
             FieldCondition(
                 key=key,
                 match=MatchValue(value=value)
             )
         )
+
+    if not must_conditions:
+        return None
 
     return Filter(must=must_conditions)
 

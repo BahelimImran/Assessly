@@ -56,7 +56,7 @@ def ingest_pdf(file_path, log, user_id):
     #     }
 
     # Remove old chunks of same document before inserting again
-    deleted_count = delete_existing_document(document_id)
+    deleted_count = delete_existing_document(document_id, user_id)
 
     if deleted_count:
         # log(f"♻️ Existing document found. Replacing {deleted_count} old chunks...")
@@ -190,6 +190,8 @@ def ingest_pdf(file_path, log, user_id):
                 payload={
                     "parent_id": parent_id,
                     "document_id": document_id,
+                    "user_id": user_id,
+                    "upload_session_id": upload_session_id,
                     "source_file":source_file,
                     "section_title": parent_title,
                     "full_text": full_parent_text,
@@ -278,6 +280,7 @@ def ingest_pdf(file_path, log, user_id):
                     "child_id": child_id,
                     "parent_id": child.get("parent_id"),
                     "document_id": document_id,
+                    "upload_session_id": upload_session_id,
                     "source_file":source_file,
                     "section_title": child.get("section_title", ""),
                     "chunk_text": text_for_embedding,
@@ -312,11 +315,11 @@ def ingest_pdf(file_path, log, user_id):
             points=batch
         )
 
-    log("✔️ ✅ Ingestion complete...")
+    log(f"✔️ ✅ Ingestion complete...{user_id}")
     print("\n\n\n\n\n ✅ Ingestion complete")
     print(f"\n ⚙️  [Total ingested chunks: {len(childs_points)} | Status: Success]\n\n\n")	
     print("=================================================================================")
-    
+    log(f"✅ All set! You can start asking questions now.{user_id}")
     return {
         "document_id": document_id,
         "file_name": source_file,
@@ -457,29 +460,29 @@ def build_where_filter(filters: dict | None = None):
     section = filters.get("section")
     chunk_type = filters.get("chunk_type")
 
-    conditions = [{"user_id": user_id}]
+    clean_filter = {}
+
+    if user_id:
+        clean_filter["user_id"] = user_id
 
     if document_id:
-        conditions.append({"document_id": document_id})
+        clean_filter["document_id"] = document_id
     elif upload_session_id:
-        conditions.append({"upload_session_id": upload_session_id})
+        clean_filter["upload_session_id"] = upload_session_id
 
     if file_name:
-        conditions.append({"file_name": file_name})
+        clean_filter["file_name"] = file_name
 
     if page:
-        conditions.append({"page_number": page})
+        clean_filter["page_number"] = page
 
     if section:
-        conditions.append({"section_title": section})
+        clean_filter["section_title"] = section
 
     if chunk_type:
-        conditions.append({"chunk_type": chunk_type})
+        clean_filter["chunk_type"] = chunk_type
 
-    if len(conditions) == 1:
-        return conditions[0]
-
-    return {"$and": conditions} # logical AND filter object | every condition must pass
+    return clean_filter or None
 
 # ---------------- RETRIEVE ----------------
 def get_relevant_chunks(question: str):
@@ -549,11 +552,10 @@ def get_relevant_chunks(question: str):
     # return 
 
 def update_where_filter_with_child_chunk(where_filter):
-    child_filter = {
+    return {
         **(where_filter or {}),
         "content_type": "child_chunk"
     }
-    return child_filter
 
 def query_rag(query: str, filters: dict | None = None):
     print("\n\n\n 📚 Searching documents...")
@@ -574,7 +576,7 @@ def query_rag(query: str, filters: dict | None = None):
 
     parent_ids = rank_parent_ids_from_children(child_results=hybrid_search_child_result, max_parents=2)
 
-    parent_chunks = fetch_parent_chunks(parent_ids)
+    parent_chunks = fetch_parent_chunks(parent_ids, user_id=filters.get("user_id") if filters else None)
 
     # # print(f"\n ⚙️ [Vector candidates: {len(vector_results)} | BM25 candidates: {len(bm25_results)}]")
 

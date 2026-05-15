@@ -56,6 +56,6 @@ class JobManager:
         }
 
         await redis.publish(
-            f"job:{job_id}",
+            f"logs:{job_id}",
             json.dumps(payload)
         )

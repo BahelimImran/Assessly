@@ -48,19 +48,27 @@ def collection_exists(collection_name: str) -> bool:
     return collection_name in [c.name for c in collections]
 
 
-def build_document_filter(document_id: str) -> Filter:
-    return Filter(
-        must=[
+def build_document_filter(document_id: str, user_id: str | None = None) -> Filter:
+    must_conditions = [
+        FieldCondition(
+            key="document_id",
+            match=MatchValue(value=document_id)
+        )
+    ]
+
+    if user_id:
+        must_conditions.append(
             FieldCondition(
-                key="document_id",
-                match=MatchValue(value=document_id)
+                key="user_id",
+                match=MatchValue(value=user_id)
             )
-        ]
-    )
+        )
+
+    return Filter(must=must_conditions)
 
 
-def delete_existing_document(document_id: str) -> dict:
-    doc_filter = build_document_filter(document_id)
+def delete_existing_document(document_id: str, user_id: str | None = None) -> dict:
+    doc_filter = build_document_filter(document_id, user_id)
 
     deleted = {}
 
@@ -89,10 +97,10 @@ def delete_existing_document(document_id: str) -> dict:
 
     return deleted
 
-def document_exists(document_id: str) -> bool:
+def document_exists(document_id: str, user_id: str | None = None) -> bool:
     create_collections()
 
-    doc_filter = build_document_filter(document_id)
+    doc_filter = build_document_filter(document_id, user_id)
 
     count_result = qdrant.count(
         collection_name=CHILD_COLLECTION,

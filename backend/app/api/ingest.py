@@ -5,8 +5,8 @@ import asyncio
 import uuid
 # from app.services.ingest.job_manager import job_manager
 
-from app.services.rag_service import ingest_pdf
 from app.core.config import UPLOAD_DIR
+from app.core.config import MAX_UPLOAD_SIZE_BYTES, MAX_UPLOAD_SIZE_MB
 from app.services.upload_validator import (
     validate_pdf_file,
     validate_file_size,
@@ -14,8 +14,6 @@ from app.services.upload_validator import (
     calculate_file_hash,
 )
 from app.db.qdrant_client import document_exists
-from app.models.schema import QueryRequest
-
 import json
 from app.core.redis import redis
 from app.services.job_manager import JobManager
@@ -51,61 +49,8 @@ os.makedirs(UPLOAD_DIR, exist_ok=True)
 
 #     return result
 
-async def ingest_with_logs(job_id: str, file_path: str, user_id: str ):
-    # loop = asyncio.get_event_loop()
-    loop = asyncio.get_running_loop()
-
-    await JobManager.update_job(
-    job_id,
-    status="processing",
-    progress=10
-    )
-    # Todo : also pass progress number
-    def log(message: str, progress: int = 10):
-        asyncio.run_coroutine_threadsafe(
-            JobManager.publish_log(job_id, message, progress),
-            loop
-        )
-
-    try:
-        # await job_manager.push_log(job_id, f"✔️ 📥 Ingesting started...{user_id}")
-        await JobManager.publish_log(job_id, f"✔️ 📥 Ingesting started...{user_id}", 60)
-
-        result = await loop.run_in_executor(
-            None,
-            ingest_pdf,
-            file_path,
-            user_id,
-            log
-        )
-
-        await JobManager.update_job(
-            job_id,
-            status="completed",
-            progress=100,
-        )
-
-        await JobManager.publish_log(
-            job_id,
-            f"✅ All set! You can start asking questions now.{user_id}",
-            100
-        )
-
-        return result
-
-    except Exception as e:
-        await JobManager.update_job(
-            job_id,
-            status="failed",
-            progress=0,
-            error=str(e)
-        )
-
-        await JobManager.publish_log(
-            job_id,
-            f"❌ Failed: {str(e)}",
-            0
-        )
+async def _deprecated_ingest_with_logs(job_id: str, file_path: str, user_id: str):
+    raise RuntimeError("Ingestion must be processed by app.worker via Redis queue.")
 
 
 @router.post("/")
@@ -122,15 +67,35 @@ async def upload_and_ingest(
         safe_filename = f"{uuid.uuid4()}##{file.filename}"
         file_path = os.path.join(UPLOAD_DIR, safe_filename)
 
-        with open(file_path, "wb") as f:
-            f.write(await file.read())
+        total_size = 0
+        try:
+            with open(file_path, "wb") as f:
+                while chunk := await file.read(1024 * 1024):
+                    total_size += len(chunk)
+
+                    if total_size > MAX_UPLOAD_SIZE_BYTES:
+                        raise HTTPException(
+                            status_code=413,
+                            detail=f"File too large. Maximum allowed size is {MAX_UPLOAD_SIZE_MB} MB."
+                        )
+
+                    f.write(chunk)
+        except Exception:
+            if os.path.exists(file_path):
+                os.remove(file_path)
+            raise
 
         validate_file_size(file_path)
-        page_count = validate_pdf_page_count(file_path)
+        try:
+            page_count = validate_pdf_page_count(file_path)
+        except Exception:
+            if os.path.exists(file_path):
+                os.remove(file_path)
+            raise
 
         document_id = calculate_file_hash(file_path)
 
-        if document_exists(document_id):
+        if document_exists(document_id, user_id):
             os.remove(file_path)
 
             return {
@@ -183,17 +148,9 @@ async def upload_and_ingest(
             file_name=file.filename
         )
 
-        # asyncio.create_task(
-        #     ingest_with_logs(
-        #         job_id,
-        #         str(file_path),
-        #         user_id
-        #     )
-        # )
-
         enqueue_job({
             "job_id": job_id,
-            "file_path": file_path,
+            "file_name": safe_filename,
             "user_id": user_id
         })        
 
@@ -272,8 +229,6 @@ async def get_job_status(job_id: str):
 
 #     return EventSourceResponse(event_generator())
 
-from app.services.redis_client import redis_client
-
 @router.get("/stream/{job_id}")
 async def stream_logs(job_id: str, request: Request):
 
@@ -282,7 +237,7 @@ async def stream_logs(job_id: str, request: Request):
         pubsub = redis.pubsub()
 
         # await pubsub.subscribe(f"job:{job_id}")
-        pubsub.subscribe(f"logs:{job_id}")
+        await pubsub.subscribe(f"logs:{job_id}")
 
         try:
 
@@ -296,7 +251,7 @@ async def stream_logs(job_id: str, request: Request):
                 #     timeout=5
                 # )
 
-                message = pubsub.get_message(
+                message = await pubsub.get_message(
                     ignore_subscribe_messages=True,
                     timeout=5
                 )
@@ -316,7 +271,7 @@ async def stream_logs(job_id: str, request: Request):
                 await asyncio.sleep(0.1)
 
         finally:
-            await pubsub.unsubscribe(f"job:{job_id}")
+            await pubsub.unsubscribe(f"logs:{job_id}")
             await pubsub.close()
 
     return EventSourceResponse(event_generator())
