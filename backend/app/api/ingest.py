@@ -7,6 +7,7 @@ import uuid
 
 from app.core.config import UPLOAD_DIR
 from app.core.config import MAX_UPLOAD_SIZE_BYTES, MAX_UPLOAD_SIZE_MB
+from app.core.config import MAX_ACTIVE_JOBS_PER_USER
 from app.services.upload_validator import (
     validate_pdf_file,
     validate_file_size,
@@ -142,10 +143,22 @@ async def upload_and_ingest(
         # with open(file_path, "wb") as f:
         #     shutil.copyfileobj(file.file, f)
 
+        if MAX_ACTIVE_JOBS_PER_USER > 0:
+            active_jobs = await JobManager.count_active_jobs_for_user(user_id)
+            if active_jobs >= MAX_ACTIVE_JOBS_PER_USER:
+                if os.path.exists(file_path):
+                    os.remove(file_path)
+
+                raise HTTPException(
+                    status_code=429,
+                    detail=f"Too many active ingestion jobs. Maximum allowed: {MAX_ACTIVE_JOBS_PER_USER}."
+                )
+
         await JobManager.create_job(
             job_id=job_id,
             user_id=user_id,
-            file_name=file.filename
+            file_name=file.filename,
+            safe_file_name=safe_filename,
         )
 
         enqueue_job({
@@ -161,8 +174,8 @@ async def upload_and_ingest(
             "user_id": user_id
         }
 
-    # except HTTPException:
-    #     raise
+    except HTTPException:
+        raise
 
     except Exception as e:
         raise HTTPException(
