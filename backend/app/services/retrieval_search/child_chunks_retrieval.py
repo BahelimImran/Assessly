@@ -9,9 +9,9 @@ from qdrant_client.models import (
     SparseVector,
 )
 from app.core.config import *
-import requests
 from typing import List, Dict, Any
 import numpy as np
+from app.services.model_client import post_json_with_retry
 
 
 from fastembed import SparseTextEmbedding
@@ -25,13 +25,12 @@ def get_sparse_embedding(text: str):
     return list(sparse_model.embed([text]))[0]
 
 def get_embedding(text: str) -> List[float]:
-    response = requests.post(
+    data = post_json_with_retry(
         f"{OLLAMA_BASE_URL}/api/embeddings",
-        json={"model": EMBED_MODEL, "prompt": text},
-        timeout=120
+        {"model": EMBED_MODEL, "prompt": text},
+        timeout=EMBED_REQUEST_TIMEOUT_SECONDS,
+        request_name="ollama_query_embedding"
     )
-    response.raise_for_status() 
-    data = response.json()
     embedding = data.get("embedding") or data.get("embeddings", [[]])[0]
 
     if not embedding:

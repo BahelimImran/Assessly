@@ -1,13 +1,16 @@
+import asyncio
+import logging
+
 from fastapi import APIRouter, HTTPException
 from app.models.schema import QueryRequest
 from app.services.rag_service import generate_answer
-import traceback
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
 
 
 @router.post("/")
-def query(req: QueryRequest):
+async def query(req: QueryRequest):
     try:
         filters = {
             "document_id": req.document_id,
@@ -19,7 +22,7 @@ def query(req: QueryRequest):
             "user_id": req.user_id,
         }
 
-        result = generate_answer(req.question, filters)
+        result = await asyncio.to_thread(generate_answer, req.question, filters)
 
         return {
             "question": req.question,
@@ -27,8 +30,7 @@ def query(req: QueryRequest):
             "filters_applied": filters
         }
     except Exception as e:
-        print("Query Error:\n")
-        traceback.print_exc()
+        logger.exception("Query failed")
         raise HTTPException(
             status_code=500,
             detail=f"Query failed: {str(e)}"

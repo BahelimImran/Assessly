@@ -1,9 +1,12 @@
 import base64
-import requests
+import logging
 from pathlib import Path
 from typing import List, Dict, Any
 
-from app.core.config import OLLAMA_BASE_URL, VISION_MODEL
+from app.core.config import OLLAMA_BASE_URL, VISION_MODEL, VISION_REQUEST_TIMEOUT_SECONDS
+from app.services.model_client import post_json_with_retry
+
+logger = logging.getLogger(__name__)
 
 # OLLAMA_BASE_URL = "http://localhost:11434"
 # VISION_MODEL = "qwen2.5vl:3b"
@@ -31,9 +34,9 @@ def call_ollama_vision(image_path: str, prompt: str) -> str:
     try:
         image_base64 = image_to_base64(image_path)
 
-        response = requests.post(
+        data = post_json_with_retry(
             f"{OLLAMA_BASE_URL}/api/generate",
-            json={
+            {
                 "model": VISION_MODEL,
                 "prompt": prompt,
                 "images": [image_base64],
@@ -44,17 +47,14 @@ def call_ollama_vision(image_path: str, prompt: str) -> str:
                     "num_predict": 300
                 }
             },
-            timeout=180
+            timeout=VISION_REQUEST_TIMEOUT_SECONDS,
+            request_name="ollama_vision"
         )
-
-        response.raise_for_status()
-
-        data = response.json()
 
         return data.get("response", "").strip()
 
     except Exception as e:
-        print(f"Vision model error: {e}")
+        logger.warning("Vision model error", extra={"error": str(e)})
         return ""
     
 def enrich_visual_elements(elements: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
@@ -74,7 +74,7 @@ def enrich_visual_elements(elements: List[Dict[str, Any]]) -> List[Dict[str, Any
         try:
             image_summary = summarize_image_with_vision_model(image_path)
         except Exception as e:
-            print(f"Vision enrichment skipped for {image_path}: {e}")
+            logger.warning("Vision enrichment skipped", extra={"image_path": image_path, "error": str(e)})
             image_summary = ""
 
         element["image_summary"] = image_summary
@@ -109,9 +109,9 @@ def summarize_image_with_vision_model(image_path: str) -> str:
                 Do not hallucinate. If unclear, say what is unclear.
                 """
 
-        response = requests.post(
+        data = post_json_with_retry(
             f"{OLLAMA_BASE_URL}/api/generate",
-            json={
+            {
                 "model": VISION_MODEL,
                 "prompt": prompt,
                 "images": [image_base64],
@@ -121,15 +121,14 @@ def summarize_image_with_vision_model(image_path: str) -> str:
                     "num_predict": 250
                 }
             },
-            timeout=180
+            timeout=VISION_REQUEST_TIMEOUT_SECONDS,
+            request_name="ollama_vision_summary"
         )
 
-        response.raise_for_status()
-
-        return response.json().get("response", "").strip()
+        return data.get("response", "").strip()
 
     except Exception as e:
-        print(f"Vision enrichment failed for {image_path}: {e}")
+        logger.warning("Vision enrichment failed", extra={"image_path": image_path, "error": str(e)})
         return ""
 def encode_image_to_base64(image_path: str) -> str:
     with open(image_path, "rb") as image_file:

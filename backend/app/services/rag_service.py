@@ -1,5 +1,5 @@
-import requests
 import os
+import logging
 from typing import List
 from datetime import datetime, timezone
 
@@ -21,11 +21,14 @@ from app.services.identify_document.identify_document import hash_file_bytes, ha
 # from app.services.retrieval_search.bm25_search import *
 from app.services.retrieval_search.child_chunks_retrieval import *
 from app.services.retrieval_search.parent_chunks_retrieval import fetch_parent_chunks
+from app.services.model_client import ModelCallError, ModelCallTimeout, post_json_with_retry
 # from app.services.retrieval_search.merge_vector_bm25 import *
 # from app.services.retrieval_search.reranker import *
 # from app.services.retrieval_search.context_compressor import *
 from app.services.measure_confidence.calculate_confidence import *
 import uuid
+
+logger = logging.getLogger(__name__)
 
 
 # ---------------- INGEST ----------------
@@ -338,37 +341,46 @@ def get_embedding(text: str) -> List[float]:
     
     if EMBED_PROVIDER == "ollama":
 
-        response = requests.post(
+        data = post_json_with_retry(
             f"{OLLAMA_BASE_URL}/api/embeddings",
-            json={"model": EMBED_MODEL, "prompt": text},
-            timeout=120
+            {"model": EMBED_MODEL, "prompt": text},
+            timeout=EMBED_REQUEST_TIMEOUT_SECONDS,
+            request_name="ollama_embedding"
         )
-        data = response.json()
-        
-        return data.get("embedding") or data.get("embeddings", [[]])[0]
+
+        embedding = data.get("embedding") or data.get("embeddings", [[]])[0]
+        if not embedding:
+            raise RuntimeError("Embedding generation failed. Empty embedding returned.")
+
+        return embedding
     raise ValueError(f"Unsupported embedding provider: {EMBED_PROVIDER}")
 
 # def get_embeddings_batch(texts: list[str]) -> list[list[float]]:
 def get_embeddings_batch(texts, batch_size=8):
     if EMBED_PROVIDER == "ollama":
+        if not texts:
+            return []
+
         all_embeddings = []
 
         for i in range(0, len(texts), batch_size):
             batch = texts[i:i + batch_size]
 
-            response = requests.post(
+            data = post_json_with_retry(
                 f"{OLLAMA_BASE_URL}/api/embed",
-                json={
+                {
                     "model": EMBED_MODEL,
                     "input": batch
                 },
-                timeout=300
+                timeout=EMBED_BATCH_REQUEST_TIMEOUT_SECONDS,
+                request_name="ollama_batch_embedding"
             )
 
-            response.raise_for_status()
-            data = response.json()
+            embeddings = data.get("embeddings") or []
+            if len(embeddings) != len(batch):
+                raise RuntimeError("Batch embedding failed. Embedding count mismatch.")
 
-            all_embeddings.extend(data["embeddings"])
+            all_embeddings.extend(embeddings)
 
         if not all_embeddings:
             raise RuntimeError("Batch embedding failed. Empty embeddings returned.")
@@ -694,32 +706,26 @@ ANSWER:
 # ---------------- LLM ----------------
 def call_llm(prompt: str):
     try:
-        print(f"prompt is: {prompt}")
-        print(f"prompt total length is: {len(prompt)}")
-        print("\n\n\n\n\n ⏳ Waiting for response...")
-        print(f"\n ⚙️  [LLM inference in progress]")
+        logger.info("LLM inference started", extra={"prompt_length": len(prompt)})
         final_prompt = "/no_think\n\n" + prompt
-        response = requests.post(
+        data = post_json_with_retry(
             f"{OLLAMA_BASE_URL}/api/generate",
-            json={
-                        "model": LLM_MODEL, 
-                        "prompt": final_prompt, 
-                        "stream": False,
-                        "options":{
-                            "temperature":0.0, # Low creativity. Good for RAG factual answers. 0.0 = deterministic 0.2 = stable factual 0.8 = creative
-                            "num_ctx":8096, # Max tokens model can consider.Includes: prompt, retrieved chunks, question, answer tokens - Higher = slower + more RAM.
-                            "num_predict":850 # Maximum answer length. Prevents model generating forever. Good for speed.
-                        }
-                    },
-            timeout=300
+            {
+                "model": LLM_MODEL,
+                "prompt": final_prompt,
+                "stream": False,
+                "options": {
+                    "temperature": 0.0,
+                    "num_ctx": 8096,
+                    "num_predict": 850
+                }
+            },
+            timeout=LLM_REQUEST_TIMEOUT_SECONDS,
+            request_name="ollama_generation"
         )
 
-        response.raise_for_status()
-        print("\n\n\n\n\n ✅ Answer ready")
-        print(f"\n ⚙️  [Response received]\n\n\n\n")
-        print("=================================================================================")
-        print(f"response :{response.json()}")
-        return response.json().get("response", "").strip()
+        logger.info("LLM inference completed")
+        return data.get("response", "").strip()
         # response = requests.post(
         # f"{OLLAMA_BASE_URL}/api/chat",
         #     json={
@@ -742,10 +748,14 @@ def call_llm(prompt: str):
 
         # data = response.json()
         # return data["message"]["content"].strip()
-    except requests.exceptions.ReadTimeout:
+    except ModelCallTimeout:
         return "The local AI model took too long to respond. Please try with a shorter question or smaller document context."
-    except Exception as e:
-        return f"LLM error: {str(e)}"
+    except ModelCallError as e:
+        logger.warning("LLM call failed", extra={"error": str(e)})
+        return "The local AI model is temporarily unavailable. Please try again."
+    except Exception:
+        logger.exception("Unexpected LLM error")
+        return "The local AI model failed unexpectedly. Please try again."
 
 
 # ---------------- MAIN PIPELINE ----------------
@@ -823,8 +833,7 @@ def validate_grounding(answer, chunks, confidence):
 
 
 def generate_answer(question: str, filters: dict | None = None):
-    print("\n\n\n 🧠 Understanding your question...")
-    print(f"\n ⚙️  [Query received: {question}]\n")
+    logger.info("Generating answer")
 
     chunks = query_rag(question, filters)
 
@@ -858,8 +867,7 @@ def generate_answer(question: str, filters: dict | None = None):
     if not chunks:
      return "Not found in document."
 
-    print("\n\n\n\n\n ✍️  Generating structured answer...")
-    print(f"\n ⚙️  [Prompt constructed → Sending to LLM]")
+    logger.info("Prompt constructed; sending to LLM")
 
     context = build_context(chunks)
     prompt = create_prompt(question, context)
