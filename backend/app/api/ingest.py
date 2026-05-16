@@ -20,6 +20,7 @@ from app.core.redis import redis
 from app.services.job_manager import JobManager
 
 from app.services.job_queue import enqueue_job
+from app.services.metadata_repository import get_document_by_hash, prepare_upload_metadata
 
 
 
@@ -93,19 +94,56 @@ async def upload_and_ingest(
             if os.path.exists(file_path):
                 os.remove(file_path)
             raise
+        # detects same file content
+        document_hash = calculate_file_hash(file_path)
 
-        document_id = calculate_file_hash(file_path)
+# Checks:
 
-        if document_exists(document_id, user_id):
+# Does Postgres know this user already has this file hash?
+# Is that document ready?
+# Do Qdrant vectors exist for that document/user?
+
+# Why: This prevents showing/returning duplicate based on incomplete metadata.
+
+        existing_document = get_document_by_hash(user_id, document_hash)
+        if (
+            existing_document
+            and existing_document.get("status") == "ready"
+            and document_exists(existing_document["document_id"], user_id)
+        ):
             os.remove(file_path)
 
             return {
                 "status": "duplicate",
                 "message": "This PDF already exists in knowledge base.",
-                "document_id": document_id,
+                "document_id": existing_document["document_id"],
+                "document_hash": document_hash,
                 "file": file.filename,
-                "total_pages":page_count
+                "total_pages": page_count,
             }
+# What it creates:
+
+# user row if missing
+# document row if missing
+# upload session row
+# ingestion job row
+# audit event
+
+# Why: Before Redis queue receives the job, Postgres already has durable metadata.
+
+        job_id = str(uuid.uuid4())
+        metadata = prepare_upload_metadata(
+            external_user_id=user_id,
+            document_hash=document_hash,
+            original_file_name=file.filename,
+            stored_file_name=safe_filename,
+            redis_job_id=job_id,
+        )
+
+# document_id now comes from Postgres.
+# Why: Qdrant vectors should link to Postgres document records.
+        document_id = metadata["document_id"]
+        upload_session_id = metadata["upload_session_id"]
 
         # # asyncio.create_task(ingest_with_logs(file_path))
         # job_id = str(uuid.uuid4())
@@ -133,8 +171,6 @@ async def upload_and_ingest(
         #     "page_count": page_count
         # }
 
-        job_id = str(uuid.uuid4())
-
         # upload_dir = Path("uploads")
         # upload_dir.mkdir(exist_ok=True)
 
@@ -154,22 +190,47 @@ async def upload_and_ingest(
                     detail=f"Too many active ingestion jobs. Maximum allowed: {MAX_ACTIVE_JOBS_PER_USER}."
                 )
 
+# Redis live job status now also knows:
+
+# Postgres document ID
+# file hash
+# upload session ID
+
+# Why: The frontend can still poll Redis job status, while worker can connect Redis job to Postgres metadata.
+
         await JobManager.create_job(
             job_id=job_id,
             user_id=user_id,
             file_name=file.filename,
             safe_file_name=safe_filename,
+            document_id=document_id,
+            document_hash=document_hash,
+            upload_session_id=upload_session_id,
         )
+# What it does:
+# Sends these IDs to the Docker worker.
 
+# Why:
+
+# Worker needs them to:
+# update Postgres job/document/session status
+# store correct document_id and document_hash in Qdrant payload
         enqueue_job({
             "job_id": job_id,
             "file_name": safe_filename,
-            "user_id": user_id
+            "user_id": user_id,
+            "document_id": document_id,
+            "document_hash": document_hash,
+            "upload_session_id": upload_session_id,
         })        
 
+# Frontend/debugging can see the durable IDs created for this upload.
         return {
             "message": "Upload accepted. Ingestion started.",
             "job_id": job_id,
+            "document_id": document_id,
+            "document_hash": document_hash,
+            "upload_session_id": upload_session_id,
             "file": file.filename,
             "user_id": user_id
         }
@@ -178,6 +239,13 @@ async def upload_and_ingest(
         raise
 
     except Exception as e:
+# What it does:
+# If upload fails after saving the file, remove the saved file.
+
+# Why: Prevents orphan files when something fails during metadata/job creation.        
+        if "file_path" in locals() and os.path.exists(file_path):
+            os.remove(file_path)
+
         raise HTTPException(
             status_code=500,
             detail=f"Ingestion failed: {str(e)}"

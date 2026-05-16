@@ -5,7 +5,16 @@ from typing import List, Dict, Any
 import uuid
 from fastembed import SparseTextEmbedding
 
-sparse_model = SparseTextEmbedding(model_name="Qdrant/bm25") #Todo - For production - prithivida/Splade_PP_en_v1
+_sparse_model = None
+
+
+def get_sparse_model():
+    global _sparse_model
+
+    if _sparse_model is None:
+        _sparse_model = SparseTextEmbedding(model_name="Qdrant/bm25") #Todo - For production - prithivida/Splade_PP_en_v1
+
+    return _sparse_model
 
 qdrant = QdrantClient(url=QDRANT_URL)
 

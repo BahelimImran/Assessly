@@ -7,7 +7,7 @@ from app.core.config import *
 # from app.db.chroma_client import collection
 from app.db.qdrant_client import qdrant, create_collections, delete_existing_document
 from qdrant_client.models import PointStruct
-from app.db.qdrant_client import sparse_model
+from app.db.qdrant_client import get_sparse_model
 from app.core.config import PERSIST_DIR, VECTOR_SIZE
 
 # from app.services.pdf_parser import parse_pdf
@@ -32,15 +32,16 @@ logger = logging.getLogger(__name__)
 
 
 # ---------------- INGEST ----------------
-def ingest_pdf(file_path, log, user_id):
+def ingest_pdf(file_path, log, user_id, document_id: str | None = None, document_hash: str | None = None, upload_session_id: str | None = None):
     print("\n\n\n 📥 Ingesting document...")
     print(f"\n ⚙️  [File: {file_path}]")
     
     source_file = os.path.basename(file_path)
-    document_id = hash_file_bytes(file_path)
+    document_hash = document_hash or hash_file_bytes(file_path)
+    document_id = document_id or document_hash
     created_at = datetime.now(timezone.utc).isoformat()
 
-    upload_session_id = str(uuid.uuid4())
+    upload_session_id = upload_session_id or str(uuid.uuid4())
     user_id = user_id
 
 
@@ -193,6 +194,7 @@ def ingest_pdf(file_path, log, user_id):
                 payload={
                     "parent_id": parent_id,
                     "document_id": document_id,
+                    "document_hash": document_hash,
                     "user_id": user_id,
                     "upload_session_id": upload_session_id,
                     "source_file":source_file,
@@ -254,7 +256,7 @@ def ingest_pdf(file_path, log, user_id):
 
     dense_embeddings = get_embeddings_batch(texts)
 
-    sparse_embeddings = list(sparse_model.embed(texts))
+    sparse_embeddings = list(get_sparse_model().embed(texts))
 
     childs_points = []
 
@@ -283,6 +285,7 @@ def ingest_pdf(file_path, log, user_id):
                     "child_id": child_id,
                     "parent_id": child.get("parent_id"),
                     "document_id": document_id,
+                    "document_hash": document_hash,
                     "upload_session_id": upload_session_id,
                     "source_file":source_file,
                     "section_title": child.get("section_title", ""),
@@ -325,6 +328,7 @@ def ingest_pdf(file_path, log, user_id):
     log(f"✅ All set! You can start asking questions now.{user_id}")
     return {
         "document_id": document_id,
+        "document_hash": document_hash,
         "file_name": source_file,
         "source_file": source_file,
         "upload_session_id": upload_session_id,

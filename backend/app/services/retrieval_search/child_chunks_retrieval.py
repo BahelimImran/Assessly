@@ -14,15 +14,11 @@ import numpy as np
 from app.services.model_client import post_json_with_retry
 
 
-from fastembed import SparseTextEmbedding
-
-sparse_model = SparseTextEmbedding(
-    model_name="Qdrant/bm25"
-)
-
 
 def get_sparse_embedding(text: str):
-    return list(sparse_model.embed([text]))[0]
+    from app.db.qdrant_client import get_sparse_model
+
+    return list(get_sparse_model().embed([text]))[0]
 
 def get_embedding(text: str) -> List[float]:
     data = post_json_with_retry(

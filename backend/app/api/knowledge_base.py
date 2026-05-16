@@ -4,6 +4,7 @@ from qdrant_client.models import Filter, FieldCondition, MatchValue
 from app.db.qdrant_client import qdrant
 from app.core.config import CHILD_COLLECTION
 from app.models.schema import QueryRequest
+from app.services.metadata_repository import list_user_documents
 
 
 router = APIRouter()
@@ -16,6 +17,12 @@ def list_ingested_files(
 ):
     try:
         print(f"knowledge api user-id :{user_id}")
+        metadata_files = list_user_documents(user_id, ready_only=True)
+        if metadata_files:
+            return {
+                "files": metadata_files
+            }
+
         points, _ = qdrant.scroll(
             collection_name=CHILD_COLLECTION,
             scroll_filter=Filter(

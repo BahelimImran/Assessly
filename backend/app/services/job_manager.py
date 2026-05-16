@@ -15,7 +15,15 @@ def utc_now() -> str:
 class JobManager:
 
     @staticmethod
-    async def create_job(job_id: str, user_id: str, file_name: str, safe_file_name: str):
+    async def create_job(
+        job_id: str,
+        user_id: str,
+        file_name: str,
+        safe_file_name: str,
+        document_id: str = "",
+        document_hash: str = "",
+        upload_session_id: str = "",
+    ):
         now = utc_now()
 
         await redis.hset(
@@ -25,6 +33,9 @@ class JobManager:
                 "user_id": user_id,
                 "file_name": file_name,
                 "safe_file_name": safe_file_name,
+                "document_id": document_id,
+                "document_hash": document_hash,
+                "upload_session_id": upload_session_id,
                 "status": "queued",
                 "progress": 0,
                 "current_step": "queued",

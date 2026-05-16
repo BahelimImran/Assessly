@@ -19,10 +19,6 @@ import re
 from typing import Optional
 from pathlib import Path
 from typing import Any, Dict, List
-from docling.document_converter import DocumentConverter, PdfFormatOption
-from docling.datamodel.base_models import InputFormat
-from docling.datamodel.pipeline_options import PdfPipelineOptions, EasyOcrOptions
-from docling_core.types.doc import ImageRefMode, PictureItem, TableItem
 
 from app.services.parsers.vision_service import call_ollama_vision, enrich_visual_elements
 import hashlib
@@ -33,6 +29,21 @@ import random
 # from app.services.parsers.docling_normalizer import normalize_docling_markdown
 from app.services.parsers.parent_builder import build_parent_sections
 from app.services.parsers.child_chunker import create_child_chunks
+
+
+def load_docling_components():
+    try:
+        from docling.document_converter import DocumentConverter, PdfFormatOption
+        from docling.datamodel.base_models import InputFormat
+        from docling.datamodel.pipeline_options import EasyOcrOptions, PdfPipelineOptions
+    except ImportError as exc:
+        raise RuntimeError(
+            "Docling PDF parser failed to load. On Windows this is often caused by "
+            "an incompatible or broken docling/docling-parse native dependency. "
+            "Reinstall backend dependencies in the active venv, or run ingestion in the Docker worker."
+        ) from exc
+
+    return DocumentConverter, PdfFormatOption, InputFormat, PdfPipelineOptions, EasyOcrOptions
 
 
 def estimate_tokens(text: str) -> int:
@@ -64,7 +75,7 @@ def chunk_text_with_overlap(
 
     return chunks
 
-def extract_table_markdown(table: TableItem) -> str:
+def extract_table_markdown(table: Any) -> str:
     try:
         return table.export_to_markdown()
     except Exception:
@@ -554,6 +565,8 @@ def parse_pdf_with_docling(
         file_path: str, 
         output_root: str = "storage/parsed",
         use_ocr: bool = False) -> Dict[str, Any]:
+    DocumentConverter, PdfFormatOption, InputFormat, PdfPipelineOptions, _ = load_docling_components()
+
     
     path = Path(file_path)
 
@@ -989,6 +1002,8 @@ def parse_document(file_path: str, log) -> Dict[str, Any]:
 #     return elements
 
 def parse_pdf_to_elements(pdf_path: str, use_ocr: bool) -> List[Dict[str, Any]]:
+    DocumentConverter, PdfFormatOption, InputFormat, PdfPipelineOptions, EasyOcrOptions = load_docling_components()
+
     pipeline_options = PdfPipelineOptions()
 
     # OCR support
