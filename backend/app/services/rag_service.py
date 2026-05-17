@@ -5,7 +5,7 @@ from datetime import datetime, timezone
 
 from app.core.config import *
 # from app.db.chroma_client import collection
-from app.db.qdrant_client import qdrant, create_collections, delete_existing_document
+from app.db.qdrant_client import qdrant, create_collections
 from qdrant_client.models import PointStruct
 from app.db.qdrant_client import get_sparse_model
 from app.core.config import PERSIST_DIR, VECTOR_SIZE
@@ -21,6 +21,7 @@ from app.services.identify_document.identify_document import hash_file_bytes, ha
 # from app.services.retrieval_search.bm25_search import *
 from app.services.retrieval_search.child_chunks_retrieval import *
 from app.services.retrieval_search.parent_chunks_retrieval import fetch_parent_chunks
+from app.services.metadata_repository import get_active_upload_session_ids
 from app.services.model_client import ModelCallError, ModelCallTimeout, post_json_with_retry
 # from app.services.retrieval_search.merge_vector_bm25 import *
 # from app.services.retrieval_search.reranker import *
@@ -58,13 +59,6 @@ def ingest_pdf(file_path, log, user_id, document_id: str | None = None, document
     #         "source_file": os.path.basename(file_path),
     #         "chunks": len(existing["ids"])
     #     }
-
-    # Remove old chunks of same document before inserting again
-    deleted_count = delete_existing_document(document_id, user_id)
-
-    if deleted_count:
-        # log(f"♻️ Existing document found. Replacing {deleted_count} old chunks...")
-        print(f"\n ♻️ Deleted old chunks for document_id: {document_id}")
 
     log(f"✔️ 📄 Parsing document structure...{user_id}")
     print("\n\n\n\n\n 📄 Parsing document structure...")
@@ -334,7 +328,7 @@ def ingest_pdf(file_path, log, user_id, document_id: str | None = None, document
         "upload_session_id": upload_session_id,
         "user_id": user_id,
         "chunks": len(childs_points),
-        "replaced_existing_chunks": deleted_count
+        "replaced_existing_chunks": {}
     }
 
 def batched(items, batch_size=64):
@@ -577,6 +571,23 @@ def query_rag(query: str, filters: dict | None = None):
     print("\n\n\n 📚 Searching documents...")
     print("\n ⚙️ [Hybrid retrieval: Vector top 10 + BM25 top 10]")
 
+    filters = filters or {}
+    user_id = filters.get("user_id")
+
+    if user_id and not filters.get("upload_session_id"):
+        active_upload_session_ids = get_active_upload_session_ids(
+            user_id,
+            document_id=filters.get("document_id"),
+        )
+
+        if not active_upload_session_ids:
+            return []
+
+        filters = {
+            **filters,
+            "upload_session_id": active_upload_session_ids,
+        }
+
     build_filter = build_where_filter(filters)
     where_filter = update_where_filter_with_child_chunk(build_filter)
 
@@ -592,7 +603,15 @@ def query_rag(query: str, filters: dict | None = None):
 
     parent_ids = rank_parent_ids_from_children(child_results=hybrid_search_child_result, max_parents=2)
 
-    parent_chunks = fetch_parent_chunks(parent_ids, user_id=filters.get("user_id") if filters else None)
+    upload_session_filter = filters.get("upload_session_id")
+    if isinstance(upload_session_filter, str):
+        upload_session_filter = [upload_session_filter]
+
+    parent_chunks = fetch_parent_chunks(
+        parent_ids,
+        user_id=filters.get("user_id") if filters else None,
+        upload_session_ids=upload_session_filter,
+    )
 
     # # print(f"\n ⚙️ [Vector candidates: {len(vector_results)} | BM25 candidates: {len(bm25_results)}]")
 

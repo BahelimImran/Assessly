@@ -58,7 +58,8 @@ async def _deprecated_ingest_with_logs(job_id: str, file_path: str, user_id: str
 @router.post("/")
 async def upload_and_ingest(
         file: UploadFile = File(...),
-        user_id: str = Form(...)
+        user_id: str = Form(...),
+        replace_existing: bool = Form(False),
 ):
     try:
         # print(f"formdata : {formdata}")
@@ -110,16 +111,18 @@ async def upload_and_ingest(
             existing_document
             and existing_document.get("status") == "ready"
             and document_exists(existing_document["document_id"], user_id)
+            and not replace_existing
         ):
             os.remove(file_path)
 
             return {
                 "status": "duplicate",
-                "message": "This PDF already exists in knowledge base.",
+                "message": "This PDF already exists in knowledge base. Send replace_existing=true to re-ingest it safely.",
                 "document_id": existing_document["document_id"],
                 "document_hash": document_hash,
                 "file": file.filename,
                 "total_pages": page_count,
+                "can_replace": True,
             }
 # What it creates:
 
@@ -144,6 +147,7 @@ async def upload_and_ingest(
 # Why: Qdrant vectors should link to Postgres document records.
         document_id = metadata["document_id"]
         upload_session_id = metadata["upload_session_id"]
+        previous_active_upload_session_id = metadata.get("previous_active_upload_session_id")
 
         # # asyncio.create_task(ingest_with_logs(file_path))
         # job_id = str(uuid.uuid4())
@@ -222,6 +226,8 @@ async def upload_and_ingest(
             "document_id": document_id,
             "document_hash": document_hash,
             "upload_session_id": upload_session_id,
+            "previous_active_upload_session_id": previous_active_upload_session_id,
+            "replace_existing": replace_existing,
         })        
 
 # Frontend/debugging can see the durable IDs created for this upload.
@@ -232,7 +238,8 @@ async def upload_and_ingest(
             "document_hash": document_hash,
             "upload_session_id": upload_session_id,
             "file": file.filename,
-            "user_id": user_id
+            "user_id": user_id,
+            "replace_existing": replace_existing,
         }
 
     except HTTPException:

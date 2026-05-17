@@ -30,8 +30,8 @@
       </p>
     </div>
     <div class="upload-box">
-      <h4 style="color: #10a37f;display: flex;justify-content: center;font-size: 18px;">Best results with text-based
-        PDFs.<br>Scanned files may not work accurately.</h4>
+      <!-- <h4 style="color: #10a37f;display: flex;justify-content: center;font-size: 18px;">Best results with text-based
+        PDFs.<br>Scanned files may not work accurately.</h4> -->
 
       <label class="upload-btn-white">
         📂 Upload PDF
@@ -42,7 +42,17 @@
       </button>
 
       <p class="status">{{ pickedFile }}</p>
-      <p *ngIf="logs.length == 0" class="status">{{ message }}</p>
+      <p *ngIf="logs.length == 0" class="status" [class.duplicate-status]="duplicatePending">{{ message }}</p>
+
+      <button
+        *ngIf="duplicatePending"
+        type="button"
+        class="replace-confirm-btn"
+        (click)="confirmReplacement()"
+        [disabled]="isUploading"
+      >
+        Confirm Replace Document
+      </button>
     </div>
     <div *ngIf="logs.length > 0">
       <h4>
@@ -73,13 +83,13 @@
         </div>
     </div>
 
-    <div class="tech-box">
+    <!-- <div class="tech-box">
 
       <div class="info-panel rag-panel">
 
         <h3 style="font-size: 18px;">RAG Pipeline</h3>
 
-        <!-- COMPONENT DETAILS -->
+        -- COMPONENT DETAILS --
         <div class="info-section">
           <h4 style="font-size: 16px;">⚙️ Components</h4>
 
@@ -89,20 +99,20 @@
           </div>
         </div>
 
-        <!-- BADGE -->
+        <-- BADGE --
         <div class="tech-item">
           <strong>🚀 Design Philosophy</strong>
           <p class="badge">
             Built for scalable semantic retrieval, low-latency inference, and explainable AI responses.
           </p>
         </div>
-        <!-- <p class="badge">
+        <-- <p class="badge">
           🚀 Built for scalable semantic retrieval, low-latency inference, and explainable AI responses.
-        </p> -->
+        </p> --
 
       </div>
 
-    </div>
+    </div> -->
 
   </aside>
 

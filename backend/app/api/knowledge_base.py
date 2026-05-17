@@ -2,9 +2,10 @@ from fastapi import APIRouter, HTTPException
 from qdrant_client.models import Filter, FieldCondition, MatchValue
 
 from app.db.qdrant_client import qdrant
+from app.db.qdrant_client import delete_existing_document
 from app.core.config import CHILD_COLLECTION
 from app.models.schema import QueryRequest
-from app.services.metadata_repository import list_user_documents
+from app.services.metadata_repository import list_user_documents, mark_document_deleted
 
 
 router = APIRouter()
@@ -65,4 +66,33 @@ def list_ingested_files(
         raise HTTPException(
             status_code=500,
             detail=f"Failed to load knowledge base files: {str(e)}"
+        )
+
+
+@router.delete("/files/{document_id}")
+def delete_ingested_file(document_id: str, user_id: str):
+    try:
+        deleted_document = mark_document_deleted(document_id, user_id)
+
+        if not deleted_document:
+            raise HTTPException(
+                status_code=404,
+                detail="Document not found"
+            )
+
+        deleted_vectors = delete_existing_document(document_id, user_id)
+
+        return {
+            "status": "deleted",
+            "document_id": document_id,
+            "deleted_vectors": deleted_vectors
+        }
+
+    except HTTPException:
+        raise
+
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to delete document: {str(e)}"
         )

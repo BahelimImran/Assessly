@@ -4,7 +4,11 @@ from app.db.qdrant_client import qdrant
 from app.core.config import PARENT_COLLECTION
 
 
-def fetch_parent_chunks(parent_ids: list[str], user_id: str | None = None) -> list[dict]:
+def fetch_parent_chunks(
+    parent_ids: list[str],
+    user_id: str | None = None,
+    upload_session_ids: list[str] | None = None
+) -> list[dict]:
     if not parent_ids:
         return []
 
@@ -20,6 +24,14 @@ def fetch_parent_chunks(parent_ids: list[str], user_id: str | None = None) -> li
             FieldCondition(
                 key="user_id",
                 match=MatchValue(value=user_id)
+            )
+        )
+
+    if upload_session_ids:
+        must_conditions.append(
+            FieldCondition(
+                key="upload_session_id",
+                match=MatchAny(any=upload_session_ids)
             )
         )
 

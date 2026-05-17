@@ -1,6 +1,6 @@
 # from app.db.chroma_client import collection
 from app.db.qdrant_client import qdrant
-from qdrant_client.models import Filter, FieldCondition, MatchValue
+from qdrant_client.models import Filter, FieldCondition, MatchAny, MatchValue
 from qdrant_client.models import (
     Filter,
     Prefetch,
@@ -50,6 +50,18 @@ def build_qdrant_filter(where_filter: dict | None = None) -> Filter | None:
 
     for key, value in where_filter.items():
         if value in [None, ""]:
+            continue
+
+        if isinstance(value, list):
+            if not value:
+                continue
+
+            must_conditions.append(
+                FieldCondition(
+                    key=key,
+                    match=MatchAny(any=value)
+                )
+            )
             continue
 
         must_conditions.append(

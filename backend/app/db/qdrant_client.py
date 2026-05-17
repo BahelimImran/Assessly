@@ -76,9 +76,36 @@ def build_document_filter(document_id: str, user_id: str | None = None) -> Filte
     return Filter(must=must_conditions)
 
 
+def build_upload_session_filter(upload_session_id: str, user_id: str | None = None) -> Filter:
+    must_conditions = [
+        FieldCondition(
+            key="upload_session_id",
+            match=MatchValue(value=upload_session_id)
+        )
+    ]
+
+    if user_id:
+        must_conditions.append(
+            FieldCondition(
+                key="user_id",
+                match=MatchValue(value=user_id)
+            )
+        )
+
+    return Filter(must=must_conditions)
+
+
 def delete_existing_document(document_id: str, user_id: str | None = None) -> dict:
     doc_filter = build_document_filter(document_id, user_id)
+    return delete_points_by_filter(doc_filter)
 
+
+def delete_upload_session_points(upload_session_id: str, user_id: str | None = None) -> dict:
+    upload_session_filter = build_upload_session_filter(upload_session_id, user_id)
+    return delete_points_by_filter(upload_session_filter)
+
+
+def delete_points_by_filter(points_filter: Filter) -> dict:
     deleted = {}
 
     #Todo - if collection exist then only go for delete
@@ -90,7 +117,7 @@ def delete_existing_document(document_id: str, user_id: str | None = None) -> di
 
         count_result = qdrant.count(
             collection_name=collection_name,
-            count_filter=doc_filter,
+            count_filter=points_filter,
             exact=True
         )
 
@@ -99,7 +126,7 @@ def delete_existing_document(document_id: str, user_id: str | None = None) -> di
         if existing_count > 0:
             qdrant.delete(
                 collection_name=collection_name,
-                points_selector=doc_filter
+                points_selector=points_filter
             )
 
         deleted[collection_name] = existing_count

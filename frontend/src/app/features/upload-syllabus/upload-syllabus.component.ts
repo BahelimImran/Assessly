@@ -28,6 +28,7 @@ export class UploadSyllabusComponent implements OnInit{
   message = '';
   pickedFile : string ='';
   isUploading = false;
+  duplicatePending = false;
 
   question: string = '';
   answer: string = '';
@@ -174,40 +175,63 @@ Context ranking tuned for relevance and minimal hallucination.`
     if (input.files && input.files.length > 0) {
       this.selectedFile = input.files[0];
       this.pickedFile = `Selected: ${this.selectedFile.name}`;
+      this.duplicatePending = false;
+      this.message = '';
+      this.logs.length = 0;
     }
   }
 
-  uploadFile() {
+  uploadFile(replaceExisting = false) {
     if (!this.selectedFile) return;
 
     const formData = new FormData();
     formData.append('file', this.selectedFile);
     formData.append('user_id', this.activeUserId);
+    formData.append('replace_existing', String(replaceExisting));
 
     this.logs.length = 0;
     this.isUploading = true;
-    this.message = 'Processing document...';
+    this.duplicatePending = false;
+    this.message = replaceExisting ? 'Replacing document safely...' : 'Processing document...';
 
     this.http.post(`${this.apiBaseUrl}/ingest`, formData)
       .subscribe({
         next: (ingestRes:any) => {
           this.message = ingestRes?.message || '';
           this.isUploading = false;
+
+          if (ingestRes?.status === 'duplicate') {
+            this.duplicatePending = true;
+            this.isIngested = false;
+            this.cd.detectChanges();
+            return;
+          }
+
           this.isIngested = true;
           // this.activeUserId = ingestRes['user_id'];
           
           
       // ✅ Start listening to logs
-          this.startLogStream(ingestRes.job_id);          
+          if (ingestRes?.job_id) {
+            this.startLogStream(ingestRes.job_id);
+          }
           this.cd.detectChanges();
         },
         error: (err) => {
           this.message = err?.error?.detail || '❌ Upload failed';
           this.isUploading = false;
+          this.duplicatePending = false;
           this.cd.detectChanges();
         }
       });
   }
+  confirmReplacement() {
+    if (!this.duplicatePending || this.isUploading) return;
+
+    this.duplicatePending = false;
+    this.uploadFile(true);
+  }
+
   startLogStream(job_id:string) {
     const eventSource = new EventSource(`${this.apiBaseUrl}/ingest/stream/${job_id}`);
 

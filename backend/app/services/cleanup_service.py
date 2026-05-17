@@ -4,7 +4,7 @@ from collections import defaultdict
 from qdrant_client.models import Filter, FieldCondition, MatchValue
 
 from app.core.config import CHILD_COLLECTION, PARENT_COLLECTION, UPLOAD_DIR
-from app.db.qdrant_client import collection_exists, qdrant
+from app.db.qdrant_client import collection_exists, delete_upload_session_points, qdrant
 from app.services.metadata_repository import list_active_document_ids, list_referenced_upload_file_names
 
 """ 
@@ -92,6 +92,47 @@ def delete_qdrant_document_points(document_id: str, dry_run: bool = True) -> dic
         deleted[collection_name] = count
 
     return deleted
+
+
+def delete_qdrant_upload_session_points(upload_session_id: str, user_id: str | None = None, dry_run: bool = True) -> dict[str, int]:
+    if dry_run:
+        return _count_upload_session_points(upload_session_id, user_id)
+
+    return delete_upload_session_points(upload_session_id, user_id)
+
+
+def _count_upload_session_points(upload_session_id: str, user_id: str | None = None) -> dict[str, int]:
+    must_conditions = [
+        FieldCondition(
+            key="upload_session_id",
+            match=MatchValue(value=upload_session_id),
+        )
+    ]
+
+    if user_id:
+        must_conditions.append(
+            FieldCondition(
+                key="user_id",
+                match=MatchValue(value=user_id),
+            )
+        )
+
+    qdrant_filter = Filter(must=must_conditions)
+
+    counts = {}
+
+    for collection_name in [PARENT_COLLECTION, CHILD_COLLECTION]:
+        if not collection_exists(collection_name):
+            counts[collection_name] = 0
+            continue
+
+        counts[collection_name] = qdrant.count(
+            collection_name=collection_name,
+            count_filter=qdrant_filter,
+            exact=True,
+        ).count
+
+    return counts
 
 """ 
 What it does:

@@ -66,6 +66,22 @@ body {
   cursor: pointer;
 }
 
+.upload-box .replace-confirm-btn {
+  background: #f59e0b;
+  color: #1f2937;
+  font-weight: 600;
+}
+
+.upload-box .replace-confirm-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.duplicate-status {
+  color: #fbbf24;
+  font-weight: 600;
+}
+
 .status {
   font-size: 12px;
   margin-top: 10px;

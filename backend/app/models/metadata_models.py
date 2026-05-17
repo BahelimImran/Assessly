@@ -40,6 +40,7 @@ class Document(Base):
     document_hash: Mapped[str] = mapped_column(String(128), nullable=False)
     file_name: Mapped[str] = mapped_column(String(1024), nullable=False)
     source_file: Mapped[str | None] = mapped_column(String(1024), nullable=True)
+    active_upload_session_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
     status: Mapped[str] = mapped_column(String(50), default="queued", nullable=False)
     chunk_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, nullable=False)

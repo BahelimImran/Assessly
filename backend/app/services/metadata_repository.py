@@ -60,7 +60,8 @@ def prepare_upload_metadata(
         else:
             document.file_name = original_file_name
             document.source_file = stored_file_name
-            document.status = "queued"
+            if not document.active_upload_session_id:
+                document.status = "queued"
             document.updated_at = now
 
         upload_session = UploadSession(
@@ -104,6 +105,7 @@ def prepare_upload_metadata(
             "document_id": document.id,
             "document_hash": document.document_hash,
             "upload_session_id": upload_session.id,
+            "previous_active_upload_session_id": document.active_upload_session_id,
             "job_id": redis_job_id,
         }
 
@@ -128,6 +130,7 @@ def get_document_by_hash(external_user_id: str, document_hash: str) -> dict | No
             "document_hash": document.document_hash,
             "file_name": document.file_name,
             "source_file": document.source_file,
+            "active_upload_session_id": document.active_upload_session_id,
             "status": document.status,
             "chunk_count": document.chunk_count,
         }
@@ -157,10 +160,46 @@ def list_user_documents(external_user_id: str, ready_only: bool = True) -> list[
                 "source_file": document.file_name,
                 "status": document.status,
                 "chunk_count": document.chunk_count,
+                "active_upload_session_id": document.active_upload_session_id,
                 "updated_at": document.updated_at.isoformat() if document.updated_at else None,
             }
             for document in documents
         ]
+
+
+def get_active_upload_session_ids(external_user_id: str, document_id: str | None = None) -> list[str]:
+    with session_scope() as session:
+        filters = [
+            User.external_id == external_user_id,
+            Document.deleted_at.is_(None),
+            Document.status == "ready",
+            Document.active_upload_session_id.is_not(None),
+        ]
+
+        if document_id:
+            filters.append(Document.id == document_id)
+
+        session_ids = session.scalars(
+            select(Document.active_upload_session_id)
+            .join(User, Document.user_id == User.id)
+            .where(*filters)
+        ).all()
+
+        return [session_id for session_id in session_ids if session_id]
+
+
+def get_document_owner_external_id(document_id: str) -> str | None:
+    with session_scope() as session:
+        user_external_id = session.scalar(
+            select(User.external_id)
+            .join(Document, Document.user_id == User.id)
+            .where(
+                Document.id == document_id,
+                Document.deleted_at.is_(None),
+            )
+        )
+
+        return user_external_id
 
 """ 
 Returns non-deleted document IDs.
@@ -209,7 +248,8 @@ def mark_ingestion_started(redis_job_id: str, attempt_count: int):
         job.error = None
         job.started_at = job.started_at or utc_now()
 
-        job.document.status = "processing"
+        if not job.document.active_upload_session_id:
+            job.document.status = "processing"
 
         upload_session = session.get(UploadSession, job.upload_session_id)
         if upload_session:
@@ -266,6 +306,7 @@ def mark_ingestion_completed(redis_job_id: str, chunk_count: int):
         document = job.document
         document.status = "ready"
         document.chunk_count = chunk_count
+        document.active_upload_session_id = job.upload_session_id
         document.updated_at = now
 
         upload_session = session.get(UploadSession, job.upload_session_id)
@@ -309,7 +350,8 @@ def mark_ingestion_failed(redis_job_id: str, error: str):
         job.error = error
         job.failed_at = now
 
-        job.document.status = "failed"
+        if not job.document.active_upload_session_id:
+            job.document.status = "failed"
 
         upload_session = session.get(UploadSession, job.upload_session_id)
         if upload_session:
@@ -326,3 +368,43 @@ def mark_ingestion_failed(redis_job_id: str, error: str):
                 metadata_json={"error": error},
             )
         )
+
+
+def mark_document_deleted(document_id: str, external_user_id: str) -> dict | None:
+    now = utc_now()
+
+    with session_scope() as session:
+        document = session.scalar(
+            select(Document)
+            .join(User, Document.user_id == User.id)
+            .where(
+                Document.id == document_id,
+                User.external_id == external_user_id,
+                Document.deleted_at.is_(None),
+            )
+        )
+
+        if not document:
+            return None
+
+        document.status = "deleted"
+        document.deleted_at = now
+        document.updated_at = now
+
+        session.add(
+            AuditEvent(
+                user_id=document.user_id,
+                document_id=document.id,
+                event_type="document_deleted",
+                metadata_json={
+                    "document_hash": document.document_hash,
+                    "active_upload_session_id": document.active_upload_session_id,
+                },
+            )
+        )
+
+        return {
+            "document_id": document.id,
+            "document_hash": document.document_hash,
+            "active_upload_session_id": document.active_upload_session_id,
+        }

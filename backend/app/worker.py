@@ -2,6 +2,7 @@ import os
 from datetime import datetime
 
 from app.core.config import JOB_TTL_SECONDS, UPLOAD_DIR
+from app.db.qdrant_client import delete_upload_session_points
 from app.db.postgres import init_db #New Postgres Init Import
 from app.services.job_queue import ack_job, dequeue_job
 
@@ -86,6 +87,7 @@ while True:
     document_id = job.get("document_id")
     document_hash = job.get("document_hash")
     upload_session_id = job.get("upload_session_id")
+    previous_active_upload_session_id = job.get("previous_active_upload_session_id")
     file_path = resolve_file_path(job)
 
     if not job_id:
@@ -150,6 +152,11 @@ while True:
             retry_count=retry_count,
         )
         mark_ingestion_completed(job_id, int(result.get("chunks", 0)))
+
+        if previous_active_upload_session_id:
+            deleted = delete_upload_session_points(previous_active_upload_session_id, user_id)
+            publish_log(job_id, f"Cleaned previous document version: {deleted}", 100)
+
         publish_log(job_id, "Ingestion completed", 100)
 
         if stream_id:
