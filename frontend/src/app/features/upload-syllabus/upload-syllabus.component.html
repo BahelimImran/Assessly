@@ -5,31 +5,81 @@
     <h2>🧠 Assessly AI</h2>
     <p class="tagline">RAG Knowledge Assistant</p>
 
-        <!-- User Isolation Panel -->
     <div class="user-panel">
-      <label for="userId">User ID / Username</label>
+      <ng-container *ngIf="!isAuthenticated; else activeSession">
+        <div class="auth-tabs">
+          <button type="button" [class.active-auth-tab]="authMode === 'login'" (click)="authMode = 'login'">
+            Login
+          </button>
+          <button type="button" [class.active-auth-tab]="authMode === 'register'" (click)="authMode = 'register'">
+            Register
+          </button>
+        </div>
 
-      <input
-        id="userId"
-        type="text"
-        [(ngModel)]="userId"
-        placeholder="Enter username, e.g. imran"
-        class="user-input"
-      />
+        <label for="authUsername">Username</label>
+        <input
+          id="authUsername"
+          type="text"
+          [(ngModel)]="authUsername"
+          placeholder="Enter username"
+          class="user-input"
+        />
 
-      <button
-        type="button"
-        (click)="saveUserId()"
-        [disabled]="!userId.trim()"
-      >
-        Save User
-      </button>
+        <label *ngIf="authMode === 'register'" for="authEmail">Email optional</label>
+        <input
+          *ngIf="authMode === 'register'"
+          id="authEmail"
+          type="email"
+          [(ngModel)]="authEmail"
+          placeholder="name@example.com"
+          class="user-input"
+        />
 
-      <p *ngIf="activeUserId" class="active-user">
-        Active user: <strong>{{ activeUserId }}</strong>
-      </p>
+        <label for="authPassword">Password</label>
+        <input
+          id="authPassword"
+          type="password"
+          [(ngModel)]="authPassword"
+          placeholder="At least 8 characters"
+          class="user-input"
+        />
+
+        <button
+          *ngIf="authMode === 'login'"
+          type="button"
+          (click)="login()"
+          [disabled]="!authUsername.trim() || !authPassword"
+        >
+          Login
+        </button>
+
+        <button
+          *ngIf="authMode === 'register'"
+          type="button"
+          (click)="register()"
+          [disabled]="!authUsername.trim() || authPassword.length < 8"
+        >
+          Register
+        </button>
+
+        <button type="button" class="guest-btn" (click)="continueAsGuest()">
+          Continue as Guest
+        </button>
+
+        <p *ngIf="authMessage" class="status duplicate-status">{{ authMessage }}</p>
+      </ng-container>
+
+      <ng-template #activeSession>
+        <p class="active-user">
+          Active user: <strong>{{ authUser?.username }}</strong>
+        </p>
+        <p class="active-user">
+          Role: <strong>{{ authUser?.role }}</strong>
+        </p>
+        <button type="button" (click)="logout()">Logout</button>
+      </ng-template>
     </div>
-    <div class="upload-box">
+    <div class="upload-box" *ngIf="canUpload">
       <!-- <h4 style="color: #10a37f;display: flex;justify-content: center;font-size: 18px;">Best results with text-based
         PDFs.<br>Scanned files may not work accurately.</h4> -->
 
@@ -54,9 +104,12 @@
         Confirm Replace Document
       </button>
     </div>
+    <p *ngIf="isGuestMode" class="status duplicate-status">
+      Guest mode can view and query demo documents only. Upload and delete are disabled.
+    </p>
     <div *ngIf="logs.length > 0">
       <h4>
-        <svg *ngIf="message != '✅ All set! You can start asking questions now.'" width="50" height="20" viewBox="0 0 50 20">
+        <svg *ngIf="ingestionProcessing" width="50" height="20" viewBox="0 0 50 20">
           <circle cx="10" cy="10" r="4" fill="#aaa">
             <animate attributeName="opacity" values="0.2;1;0.2" dur="1.2s" repeatCount="indefinite" begin="0s"></animate>
           </circle>
@@ -124,7 +177,7 @@
 
       <div *ngIf="!isQuerying" class="empty-state">
         <h2>Ask anything from your documents</h2>
-        <p>Upload a file and start querying</p>
+        <p>{{ isAuthenticated ? 'Upload a file or use demo mode and start querying' : 'Login, register, or continue as guest' }}</p>
       </div>
       <div *ngFor="let qa of listOfQA">
         <div *ngIf="qa.question" class="message user question">
@@ -157,11 +210,11 @@
 
     <!-- INPUT BOX -->
     <div class="input-box">
-      <input [(ngModel)]="question" name="question" [disabled]="askDisable"
+      <input [(ngModel)]="question" name="question" [disabled]="askDisable || !isAuthenticated"
         style="width: 100%;height: 50px;font-size: 18px;"
         placeholder="Ask a question about your document..." />
 
-      <button (click)="getAnswer()" [disabled]="askDisable" style="font-size: 18px;">
+      <button (click)="getAnswer()" [disabled]="askDisable || !isAuthenticated" style="font-size: 18px;">
         Ask
       </button>
     </div>

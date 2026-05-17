@@ -155,9 +155,9 @@ while True:
 
         if previous_active_upload_session_id:
             deleted = delete_upload_session_points(previous_active_upload_session_id, user_id)
-            publish_log(job_id, f"Cleaned previous document version: {deleted}", 100)
+            publish_log(job_id, f"Cleaned previous document version: {deleted} and updated fresh information", 100)
 
-        publish_log(job_id, "Ingestion completed", 100)
+        # publish_log(job_id, "Ingestion completed", 100)
 
         if stream_id:
             ack_job(stream_id)

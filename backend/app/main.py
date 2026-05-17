@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api import ingest, query
+from app.api import admin, auth, ingest, query
 from app.api.knowledge_base import router as knowledge_base_router
 from app.core.config import FRONTEND_URL
 from app.db.postgres import init_db
@@ -22,6 +22,8 @@ app.add_middleware(
 # Register routers
 app.include_router(ingest.router, prefix="/ingest", tags=["Ingest"])
 app.include_router(query.router, prefix="/query", tags=["Query"])
+app.include_router(auth.router, prefix="/auth", tags=["Auth"])
+app.include_router(admin.router, prefix="/admin", tags=["Admin"])
 app.include_router(knowledge_base_router,
     prefix="/knowledge-base",
     tags=["Knowledge Base"]

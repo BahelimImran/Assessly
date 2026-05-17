@@ -1,5 +1,5 @@
 import { ChangeDetectorRef, Component, OnInit } from '@angular/core';
-import { HttpClient } from '@angular/common/http';
+import { HttpClient, HttpHeaders } from '@angular/common/http';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { environment } from '../../../environments/environment';
@@ -9,6 +9,13 @@ interface QA  {
   isQuerying : boolean,
   answer:string
 };
+
+interface AuthUser {
+  user_id: string;
+  username: string;
+  role: string;
+  email?: string | null;
+}
 @Component({
   selector: 'app-upload-syllabus',
   standalone: true,
@@ -23,6 +30,13 @@ export class UploadSyllabusComponent implements OnInit{
 
   activeUserId: string = '';
   userId = '';
+  accessToken = localStorage.getItem('assessly_access_token') || '';
+  authUser: AuthUser | null = null;
+  authMode: 'login' | 'register' = 'login';
+  authUsername = '';
+  authEmail = '';
+  authPassword = '';
+  authMessage = '';
 
   selectedFile: File | null = null;
   message = '';
@@ -129,6 +143,7 @@ Context ranking tuned for relevance and minimal hallucination.`
   ]
 };
   files: any;
+  ingestionProcessing: boolean = false;
 
 
 
@@ -143,8 +158,140 @@ Context ranking tuned for relevance and minimal hallucination.`
   //   this.activeUserId = savedUserId;
   // }
 
-    
+    this.refreshSession();
   }
+
+  get isAuthenticated(): boolean {
+    return !!this.accessToken && !!this.authUser;
+  }
+
+  get isGuestMode(): boolean {
+    return this.authUser?.role === 'guest';
+  }
+
+  get canUpload(): boolean {
+    return this.isAuthenticated && !this.isGuestMode;
+  }
+
+  private authHeaders(): HttpHeaders {
+    return new HttpHeaders({
+      Authorization: `Bearer ${this.accessToken}`
+    });
+  }
+
+  private applyAuthResponse(res: any): void {
+    this.accessToken = res?.access_token || '';
+    this.authUser = res?.user || null;
+    this.activeUserId = this.authUser?.user_id || '';
+
+    if (this.accessToken) {
+      localStorage.setItem('assessly_access_token', this.accessToken);
+    }
+
+    this.getKnowledgeBaseFile();
+  }
+
+  refreshSession(): void {
+    this.http.post(`${this.apiBaseUrl}/auth/refresh`, {}, { withCredentials: true })
+      .subscribe({
+        next: (res: any) => {
+          this.applyAuthResponse(res);
+          this.cd.detectChanges();
+        },
+        error: () => {
+          localStorage.removeItem('assessly_access_token');
+          this.accessToken = '';
+          this.authUser = null;
+          this.activeUserId = '';
+          this.files = [];
+          this.cd.detectChanges();
+        }
+      });
+  }
+
+  login(): void {
+    this.authMessage = '';
+    this.http.post(`${this.apiBaseUrl}/auth/login`, {
+      username: this.authUsername,
+      password: this.authPassword
+    }, { withCredentials: true }).subscribe({
+      next: (res: any) => {
+        this.applyAuthResponse(res);
+        this.authPassword = '';
+        this.cd.detectChanges();
+      },
+      error: (err) => {
+        this.authMessage = err?.error?.detail || 'Login failed';
+        this.cd.detectChanges();
+      }
+    });
+  }
+
+  register(): void {
+    this.authMessage = '';
+    this.http.post(`${this.apiBaseUrl}/auth/register`, {
+      username: this.authUsername,
+      email: this.authEmail || null,
+      password: this.authPassword
+    }, { withCredentials: true }).subscribe({
+      next: (res: any) => {
+        this.applyAuthResponse(res);
+        this.authPassword = '';
+        this.cd.detectChanges();
+      },
+      error: (err) => {
+        this.authMessage = err?.error?.detail || 'Registration failed';
+        this.cd.detectChanges();
+      }
+    });
+  }
+
+  continueAsGuest(): void {
+    this.authMessage = '';
+    this.http.post(`${this.apiBaseUrl}/auth/guest`, {}, { withCredentials: true }).subscribe({
+      next: (res: any) => {
+        this.applyAuthResponse(res);
+        this.cd.detectChanges();
+      },
+      error: (err) => {
+        this.authMessage = err?.error?.detail || 'Guest mode failed';
+        this.cd.detectChanges();
+      }
+    });
+  }
+
+  logout(): void {
+    this.http.post(`${this.apiBaseUrl}/auth/logout`, {}, { withCredentials: true }).subscribe({
+      next: () => this.clearSession(),
+      error: () => this.clearSession()
+    });
+  }
+
+  clearSession(): void {
+    localStorage.removeItem('assessly_access_token');
+    this.accessToken = '';
+    this.authUser = null;
+    this.activeUserId = '';
+    this.files = [];
+    this.logs.length = 0;
+    this.message = '';
+    this.cd.detectChanges();
+  }
+
+  private handleProtectedApiError(err: any, fallbackMessage: string): string {
+    if (err?.status === 401) {
+      this.clearSession();
+      this.authMessage = 'Session expired. Please login again.';
+      return this.authMessage;
+    }
+
+    if (err?.status === 403) {
+      return err?.error?.detail || 'You do not have permission for this action.';
+    }
+
+    return err?.error?.detail || fallbackMessage;
+  }
+
   saveUserId(): void {
   const cleanUserId = this.userId.trim();
 
@@ -156,14 +303,18 @@ Context ranking tuned for relevance and minimal hallucination.`
 }
 
   getKnowledgeBaseFile(){
-    this.http.get(`${this.apiBaseUrl}/knowledge-base/files?tenant_id=default_tenant&user_id=${this.activeUserId}`)
+    if (!this.accessToken) return;
+
+    this.http.get(`${this.apiBaseUrl}/knowledge-base/files?tenant_id=default_tenant`, {
+      headers: this.authHeaders()
+    })
       .subscribe({
         next: (res:any) => {
           this.files = res.files;     
           this.cd.detectChanges();
         },
         error: (err) => {
-          this.message = err?.error?.detail || '❌ Knowledge base not found';
+          this.message = this.handleProtectedApiError(err, 'Knowledge base not found');
           // this.isUploading = false;
           this.cd.detectChanges();
         }
@@ -182,19 +333,21 @@ Context ranking tuned for relevance and minimal hallucination.`
   }
 
   uploadFile(replaceExisting = false) {
-    if (!this.selectedFile) return;
+    if (!this.selectedFile || !this.canUpload) return;
 
     const formData = new FormData();
     formData.append('file', this.selectedFile);
-    formData.append('user_id', this.activeUserId);
     formData.append('replace_existing', String(replaceExisting));
 
     this.logs.length = 0;
+    this.ingestionProcessing = true;
     this.isUploading = true;
     this.duplicatePending = false;
     this.message = replaceExisting ? 'Replacing document safely...' : 'Processing document...';
 
-    this.http.post(`${this.apiBaseUrl}/ingest`, formData)
+    this.http.post(`${this.apiBaseUrl}/ingest`, formData, {
+      headers: this.authHeaders()
+    })
       .subscribe({
         next: (ingestRes:any) => {
           this.message = ingestRes?.message || '';
@@ -218,7 +371,7 @@ Context ranking tuned for relevance and minimal hallucination.`
           this.cd.detectChanges();
         },
         error: (err) => {
-          this.message = err?.error?.detail || '❌ Upload failed';
+          this.message = this.handleProtectedApiError(err, 'Upload failed');
           this.isUploading = false;
           this.duplicatePending = false;
           this.cd.detectChanges();
@@ -233,7 +386,8 @@ Context ranking tuned for relevance and minimal hallucination.`
   }
 
   startLogStream(job_id:string) {
-    const eventSource = new EventSource(`${this.apiBaseUrl}/ingest/stream/${job_id}`);
+    const token = encodeURIComponent(this.accessToken);
+    const eventSource = new EventSource(`${this.apiBaseUrl}/ingest/stream/${job_id}?access_token=${token}`);
 
     eventSource.onmessage = (event) => {
       console.log(JSON.parse(event.data).message);
@@ -245,6 +399,7 @@ Context ranking tuned for relevance and minimal hallucination.`
       this.message = JSON.parse(event.data).message;
 
       if(JSON.parse(event.data).message === "✅ All set! You can start asking questions now."){
+        this.ingestionProcessing = false;
         this.getKnowledgeBaseFile();
       }
 
@@ -259,7 +414,7 @@ Context ranking tuned for relevance and minimal hallucination.`
 
 
   getAnswer() {
-    if (!this.question) return;
+    if (!this.question || !this.isAuthenticated) return;
 
     this.answer = '';
     this.isQuerying = true;
@@ -271,7 +426,9 @@ Context ranking tuned for relevance and minimal hallucination.`
       });
 
     this.http.post(`${this.apiBaseUrl}/query`, {
-      question: this.question, user_id: this.activeUserId
+      question: this.question
+    }, {
+      headers: this.authHeaders()
     }).subscribe({
       next: (res: any) => {
         this.answer = res.answer || 'No answer found';
@@ -282,8 +439,8 @@ Context ranking tuned for relevance and minimal hallucination.`
         this.askDisable = false;
         this.cd.detectChanges();
       },
-      error: () => {
-        this.answer = 'Error fetching answer';
+      error: (err) => {
+        this.answer = this.handleProtectedApiError(err, 'Error fetching answer');
         // this.isQuerying = false;
         this.listOfQA[this.listOfQA.length-1].answer = this.answer;
         this.listOfQA[this.listOfQA.length-1].isQuerying = false;

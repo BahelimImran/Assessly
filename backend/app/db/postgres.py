@@ -29,6 +29,7 @@ def init_db():
         AuditEvent,
         Document,
         IngestionJob,
+        RefreshToken,
         UploadSession,
         User,
     )

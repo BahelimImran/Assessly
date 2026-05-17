@@ -368,6 +368,8 @@ p {
   border: none;
   border-radius: 6px;
   cursor: pointer;
+  margin-right: 8px;
+  margin-bottom: 8px;
 }
 
 .user-panel button:disabled {
@@ -378,4 +380,25 @@ p {
 .active-user {
   margin-top: 8px;
   font-size: 13px;
+}
+
+.auth-tabs {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.auth-tabs button {
+  background: #2a2b32;
+  color: #ddd;
+}
+
+.auth-tabs .active-auth-tab {
+  background: #10a37f;
+  color: white;
+}
+
+.guest-btn {
+  background: #f3f4f6;
+  color: #111827;
 }

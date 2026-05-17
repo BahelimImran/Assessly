@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException, Request, UploadFile, File, Form
+from fastapi import APIRouter, Depends, HTTPException, Request, UploadFile, File, Form
 from sse_starlette.sse import EventSourceResponse
 import os
 import asyncio
@@ -16,13 +16,13 @@ from app.services.upload_validator import (
     calculate_file_hash,
 )
 from app.db.qdrant_client import document_exists
-import json
 from app.core.redis import redis
 from app.services.job_manager import JobManager
 
 from app.services.job_queue import enqueue_job
 from app.services.metadata_repository import get_document_by_hash, prepare_upload_metadata
 from app.services.rate_limiter import enforce_fixed_window_rate_limit
+from app.services.auth_dependencies import AuthPrincipal, require_user
 
 
 
@@ -60,13 +60,13 @@ async def _deprecated_ingest_with_logs(job_id: str, file_path: str, user_id: str
 @router.post("/")
 async def upload_and_ingest(
         file: UploadFile = File(...),
-        user_id: str = Form(...),
         replace_existing: bool = Form(False),
+        principal: AuthPrincipal = Depends(require_user),
 ):
     try:
+        user_id = principal.user_id
         # print(f"formdata : {formdata}")
         # file: UploadFile = File(...)
-        print(f"user-id :{user_id}")
 
         await enforce_fixed_window_rate_limit(
             subject=user_id,
@@ -269,7 +269,10 @@ async def upload_and_ingest(
         )
 
 @router.get("/jobs/{job_id}")
-async def get_job_status(job_id: str):
+async def get_job_status(
+    job_id: str,
+    principal: AuthPrincipal = Depends(require_user),
+):
 
     # job = job_manager.get_job(job_id)
 
@@ -291,6 +294,13 @@ async def get_job_status(job_id: str):
             status_code=404,
             detail="Job not found"
         )
+
+    if job.get("user_id") != principal.user_id and not principal.is_admin:
+        raise HTTPException(
+            status_code=403,
+            detail="You cannot access this job."
+        )
+
     return job
 
 
@@ -328,7 +338,17 @@ async def get_job_status(job_id: str):
 #     return EventSourceResponse(event_generator())
 
 @router.get("/stream/{job_id}")
-async def stream_logs(job_id: str, request: Request):
+async def stream_logs(
+    job_id: str,
+    request: Request,
+    principal: AuthPrincipal = Depends(require_user),
+):
+    job = await JobManager.get_job(job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+
+    if job.get("user_id") != principal.user_id and not principal.is_admin:
+        raise HTTPException(status_code=403, detail="You cannot access this job stream.")
 
     async def event_generator():
 

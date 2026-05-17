@@ -1,10 +1,11 @@
 import asyncio
 import logging
 
-from fastapi import APIRouter, HTTPException
-from app.core.config import QUERY_RATE_LIMIT_PER_MINUTE, RATE_LIMIT_WINDOW_SECONDS
+from fastapi import APIRouter, Depends, HTTPException
+from app.core.config import GUEST_QUERY_RATE_LIMIT_PER_MINUTE, QUERY_RATE_LIMIT_PER_MINUTE, RATE_LIMIT_WINDOW_SECONDS
 from app.models.schema import QueryRequest
 from app.services.rag_service import generate_answer
+from app.services.auth_dependencies import AuthPrincipal, allow_guest_query_only
 from app.services.rate_limiter import enforce_fixed_window_rate_limit
 
 router = APIRouter()
@@ -12,13 +13,16 @@ logger = logging.getLogger(__name__)
 
 
 @router.post("/")
-async def query(req: QueryRequest):
+async def query(
+    req: QueryRequest,
+    principal: AuthPrincipal = Depends(allow_guest_query_only),
+):
     try:
-        rate_limit_subject = req.user_id or "anonymous"
+        rate_limit = GUEST_QUERY_RATE_LIMIT_PER_MINUTE if principal.is_guest else QUERY_RATE_LIMIT_PER_MINUTE
         await enforce_fixed_window_rate_limit(
-            subject=rate_limit_subject,
+            subject=principal.user_id,
             action="query",
-            limit=QUERY_RATE_LIMIT_PER_MINUTE,
+            limit=rate_limit,
             window_seconds=RATE_LIMIT_WINDOW_SECONDS,
         )
 
@@ -29,7 +33,7 @@ async def query(req: QueryRequest):
             "section": req.section,
             "chunk_type": req.chunk_type,
             "upload_session_id": req.upload_session_id,
-            "user_id": req.user_id,
+            "user_id": principal.user_id,
         }
 
         result = await asyncio.to_thread(generate_answer, req.question, filters)
@@ -48,4 +52,3 @@ async def query(req: QueryRequest):
             status_code=500,
             detail=f"Query failed: {str(e)}"
         )
-

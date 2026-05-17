@@ -1,10 +1,10 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from qdrant_client.models import Filter, FieldCondition, MatchValue
 
 from app.db.qdrant_client import qdrant
 from app.db.qdrant_client import delete_existing_document
 from app.core.config import CHILD_COLLECTION
-from app.models.schema import QueryRequest
+from app.services.auth_dependencies import AuthPrincipal, allow_guest_query_only, require_user
 from app.services.metadata_repository import list_user_documents, mark_document_deleted
 
 
@@ -14,10 +14,10 @@ router = APIRouter()
 @router.get("/files")
 def list_ingested_files(
     tenant_id: str,
-    user_id: str
+    principal: AuthPrincipal = Depends(allow_guest_query_only),
 ):
     try:
-        print(f"knowledge api user-id :{user_id}")
+        user_id = principal.user_id
         metadata_files = list_user_documents(user_id, ready_only=True)
         if metadata_files:
             return {
@@ -70,8 +70,12 @@ def list_ingested_files(
 
 
 @router.delete("/files/{document_id}")
-def delete_ingested_file(document_id: str, user_id: str):
+def delete_ingested_file(
+    document_id: str,
+    principal: AuthPrincipal = Depends(require_user),
+):
     try:
+        user_id = principal.user_id
         deleted_document = mark_document_deleted(document_id, user_id)
 
         if not deleted_document:

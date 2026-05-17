@@ -10,7 +10,6 @@ class QueryRequest(BaseModel):
     section: Optional[str] = None
     chunk_type: Optional[str] = None
     upload_session_id: Optional[str] = None
-    user_id: Optional[str] = None
 
 class JobStatus(BaseModel):
     job_id: str
@@ -18,3 +17,27 @@ class JobStatus(BaseModel):
     progress: int
     current_step: str
     error: Optional[str] = None
+
+
+class AuthRegisterRequest(BaseModel):
+    username: str
+    password: str
+    email: Optional[str] = None
+
+
+class AuthLoginRequest(BaseModel):
+    username: str
+    password: str
+
+
+class AuthUserResponse(BaseModel):
+    user_id: str
+    username: str
+    email: Optional[str] = None
+    role: str
+
+
+class AuthTokenResponse(BaseModel):
+    access_token: str
+    token_type: str = "bearer"
+    user: AuthUserResponse
