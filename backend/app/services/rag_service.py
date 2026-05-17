@@ -319,7 +319,7 @@ def ingest_pdf(file_path, log, user_id, document_id: str | None = None, document
     print("\n\n\n\n\n ✅ Ingestion complete")
     print(f"\n ⚙️  [Total ingested chunks: {len(childs_points)} | Status: Success]\n\n\n")	
     print("=================================================================================")
-    log(f"✅ All set! You can start asking questions now.{user_id}")
+    log(f"✅ All set! You can start asking questions now.")
     return {
         "document_id": document_id,
         "document_hash": document_hash,

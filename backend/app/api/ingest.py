@@ -8,6 +8,7 @@ import uuid
 from app.core.config import UPLOAD_DIR
 from app.core.config import MAX_UPLOAD_SIZE_BYTES, MAX_UPLOAD_SIZE_MB
 from app.core.config import MAX_ACTIVE_JOBS_PER_USER
+from app.core.config import RATE_LIMIT_WINDOW_SECONDS, UPLOAD_RATE_LIMIT_PER_MINUTE
 from app.services.upload_validator import (
     validate_pdf_file,
     validate_file_size,
@@ -21,6 +22,7 @@ from app.services.job_manager import JobManager
 
 from app.services.job_queue import enqueue_job
 from app.services.metadata_repository import get_document_by_hash, prepare_upload_metadata
+from app.services.rate_limiter import enforce_fixed_window_rate_limit
 
 
 
@@ -65,6 +67,14 @@ async def upload_and_ingest(
         # print(f"formdata : {formdata}")
         # file: UploadFile = File(...)
         print(f"user-id :{user_id}")
+
+        await enforce_fixed_window_rate_limit(
+            subject=user_id,
+            action="upload",
+            limit=UPLOAD_RATE_LIMIT_PER_MINUTE,
+            window_seconds=RATE_LIMIT_WINDOW_SECONDS,
+        )
+
         validate_pdf_file(file)
 
         safe_filename = f"{uuid.uuid4()}##{file.filename}"
