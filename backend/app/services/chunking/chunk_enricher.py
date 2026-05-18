@@ -1,8 +1,8 @@
-def enrich_chunk(chunk):
-    context = f"[{chunk.metadata['file']} > {chunk.metadata['section']}]"
+# def enrich_chunk(chunk):
+#     context = f"[{chunk.metadata['file']} > {chunk.metadata['section']}]"
 
-    enriched_text = f"{context}\n\n{chunk.content}"
+#     enriched_text = f"{context}\n\n{chunk.content}"
 
-    chunk.content = enriched_text # why chunk.content present like this
+#     chunk.content = enriched_text 
 
-    return chunk
+#     return chunk

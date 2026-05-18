@@ -1,22 +1,252 @@
-# 🧠 Assessly AI — RAG Knowledge Assistant
+# 🧠 Assessly AI — Enterprise RAG Knowledge Assistant
 
-Assessly is a **Retrieval-Augmented Generation (RAG) powered Knowledge Assistant** that enables users to **upload documents and ask intelligent, context-aware questions**.
+Assessly AI is a production-oriented Retrieval-Augmented Generation (RAG) knowledge assistant that transforms PDFs into intelligent, searchable knowledge systems.
 
-Built with a modern full-stack architecture, Assessly transforms static PDFs into **interactive knowledge systems** using semantic search and LLM-based reasoning.
+Users can upload documents, process them through a scalable AI pipeline, and ask grounded, context-aware questions using semantic retrieval and LLM-powered reasoning.
+
+Built with a modern full-stack architecture, Assessly focuses not only on AI capabilities — but also on the real engineering challenges involved in building production-grade RAG systems.
 
 🎥Demo Video: https://www.linkedin.com/feed/update/urn:li:activity:7453663316465422337/
 
 ---
 
-## 🚀 Features
+🎥 Demo Video:  
+https://www.linkedin.com/feed/update/urn:li:activity:7453663316465422337/
 
-* 📄 Upload and process PDF documents
-* 🧠 Context-aware question answering (RAG)
-* 🔍 Semantic search with vector embeddings
-* ⚡ Fast Angular-based UI
-* 🧩 Modular backend (FastAPI + LangChain)
-* 📊 Layout-aware PDF parsing (structure preserved)
-* 🗂 Metadata-driven retrieval for traceability
+---
+
+## 🏗️ Architecture Overview
+
+<img width="1672" height="941" alt="Assessly" src="https://github.com/user-attachments/assets/fb4f1a06-04ee-4c9e-800b-e5417eb93247" />
+
+
+---
+
+## 🚀 Key Features
+
+### 📄 Intelligent Document Processing
+
+- Upload and process PDF documents
+- Layout-aware document parsing
+- Semantic + section-aware chunking
+- Parent-child chunk architecture
+- Duplicate document detection
+- Safe re-ingestion flow
+
+### 🧠 Advanced RAG Pipeline
+
+- Context-aware question answering
+- Hybrid retrieval using dense + sparse search
+- Parent-context reconstruction
+- Metadata-aware retrieval
+- Grounded answer generation
+- User-isolated retrieval pipeline
+
+### ⚡ Production-Oriented Architecture
+
+- Redis Streams job queues
+- Background ingestion workers
+- Background query workers
+- SSE live progress streaming
+- PostgreSQL metadata persistence
+- Durable job tracking
+- Multi-user isolation
+
+### 🔐 Authentication & Security
+
+- JWT authentication
+- Refresh-token support
+- Guest/demo mode
+- Per-user document isolation
+- Upload/query rate limiting
+- LLM concurrency limiting
+
+### 🏗️ Modern Full-Stack System
+
+- Angular frontend
+- FastAPI backend
+- Qdrant vector database
+- Redis infrastructure
+- Docker Compose deployment
+- Modular AI architecture
+
+---
+
+## 🧠 RAG Pipeline Architecture
+
+Assessly uses a production-oriented Retrieval-Augmented Generation pipeline designed for large enterprise-style documents.
+
+### ⚙️ Core Components
+
+#### 📄 Document Parsing
+
+Assessly uses layout-aware parsing to preserve:
+
+- headings
+- sections
+- tables
+- narrative structure
+- contextual hierarchy
+
+Current parsing stack:
+
+- Docling
+- PDF structural extraction
+- Metadata enrichment
+
+---
+
+#### 🧩 Chunking Strategy
+
+Assessly uses:
+
+- semantic chunking
+- section-aware chunking
+- parent-child chunk architecture
+
+This helps reduce context fragmentation and improves retrieval quality for long technical documents.
+
+---
+
+#### 🧠 Embeddings
+
+Dense embeddings:
+
+- `bge-m3`
+
+Sparse retrieval:
+
+- BM25 sparse vectors using FastEmbed
+
+Embedding generation is configurable through Ollama-compatible APIs.
+
+---
+
+#### 🗂 Vector Database
+
+Assessly uses Qdrant for:
+
+- dense vector search
+- sparse vector search
+- hybrid retrieval
+- metadata filtering
+- parent-child storage architecture
+
+Collections:
+
+- `parent_chunks`
+- `child_chunks`
+
+---
+
+#### 🔍 Retrieval Pipeline
+
+```text
+User Query
+   ↓
+Dense Retrieval
+   ↓
+Sparse Retrieval
+   ↓
+Hybrid Fusion
+   ↓
+Parent Context Assembly
+   ↓
+Prompt Construction
+   ↓
+LLM Generation
+```
+
+Features:
+
+- Hybrid retrieval
+- User-filtered retrieval
+- Upload-session filtering
+- Parent context reconstruction
+- Metadata-aware search
+
+---
+
+#### 🤖 LLM Generation
+
+Assessly currently supports Ollama-compatible local models.
+
+Example models:
+
+- `qwen2.5:7b`
+- `qwen3:4b`
+- `mistral`
+
+The generation pipeline focuses on:
+
+- grounded answers
+- context-aware responses
+- reduced hallucinations
+- enterprise-style retrieval workflows
+
+---
+
+## ⚡ Production-Grade Engineering
+
+One major goal of Assessly is exploring how real RAG systems are engineered beyond simple demo architectures.
+
+### ✅ Implemented
+
+#### Redis Streams Queue Architecture
+
+- Ingestion job queues
+- Query job queues
+- Consumer groups
+- Stale job recovery
+
+#### Background Workers
+
+- Asynchronous ingestion
+- Asynchronous query execution
+- Isolated worker processes
+
+#### PostgreSQL Metadata Layer
+
+Stores:
+
+- users
+- documents
+- upload sessions
+- ingestion jobs
+- refresh tokens
+- audit events
+
+#### Multi-User Isolation
+
+Isolation exists across:
+
+- JWT identity
+- API authorization
+- Redis jobs
+- PostgreSQL metadata
+- Qdrant retrieval filters
+
+#### SSE Live Streaming
+
+Real-time streaming for:
+
+- ingestion logs
+- query progress
+- worker status updates
+
+#### Safe Re-Ingestion
+
+Assessly prevents accidental data corruption:
+
+- new vectors are inserted first
+- old vectors are removed only after successful ingestion
+
+#### Infrastructure Protection
+
+- upload rate limiting
+- query rate limiting
+- LLM concurrency limiting
+- upload size limits
 
 ---
 
@@ -24,184 +254,181 @@ Built with a modern full-stack architecture, Assessly transforms static PDFs int
 
 ### Frontend
 
-* Angular 21
-* TypeScript
-* RxJS
+- Angular 21
+- TypeScript
+- RxJS
 
 ### Backend
 
-* FastAPI
-* Python 3.11
+- FastAPI
+- Python 3.11
+- Uvicorn
+- Gunicorn
+- Pydantic
 
 ### AI / RAG Pipeline
 
-* LangChain (orchestration)
-* ChromaDB (vector store)
-* Ollama (LLM + embeddings)
-* Nomic AI (`nomic-embed-text`)
+- LangChain
+- Ollama
+- Qdrant
+- FastEmbed
+- `bge-m3` embeddings
+
+### Infrastructure
+
+- Redis
+- Redis Streams
+- PostgreSQL
+- Docker Compose
 
 ### PDF Processing
 
-* unstructured (layout-aware parsing)
-* pdf2image + pytesseract (future OCR support)
-* OpenCV, Pillow
+- Docling
+- Pillow
+- OpenCV
+
+### Authentication
+
+- JWT access tokens
+- Refresh-token cookies
+- Passlib/Bcrypt
 
 ---
 
-## 🧠 RAG Pipeline Architecture
-
-### ⚙️ Components
-
-* 📄 **Chunking**
-  Custom semantic + title-aware chunking using `unstructured.partition.pdf`
-  Preserves document structure and context continuity
-
-* 🧠 **Embeddings**
-  Nomic AI (`nomic-embed-text`) via Ollama
-  Optimized for high-quality semantic similarity
-
-* 🗂 **Vector DB**
-  ChromaDB with metadata filtering
-  Enables efficient retrieval and traceability
-
-* 🔍 **Retrieval**
-  Top-K similarity search (cosine similarity)
-  Hybrid ranking (vector + keyword) for improved relevance
-
-* 🤖 **LLM (Generation)**
-  Ollama (Mistral / LLaMA)
-  Generates grounded answers from retrieved context
-
-* 🧩 **Orchestration**
-  LangChain pipeline for ingestion, retrieval, and response generation
-
----
-
-## 🔄 Complete System Flow
+## 📄 Ingestion Flow
 
 ```text
 PDF Upload
    ↓
-PDF Parsing (layout-aware)
+Validation & Metadata Creation
    ↓
-Element Processing & Cleaning
+Redis Ingestion Queue
    ↓
-Semantic Chunking (title-aware)
+Background Worker
    ↓
-Embedding Generation (nomic-embed-text)
+Document Parsing
    ↓
-Vector Storage (ChromaDB)
-
-───────────────
-
-User Query
+Chunk Creation
    ↓
-Query Embedding
+Embedding Generation
    ↓
-Vector Search (ChromaDB)
+Qdrant Storage
    ↓
-Hybrid Ranking (vector + keyword)
-   ↓
-Context Builder
-   ↓
-Prompt Template
-   ↓
-LLM (Mistral via Ollama)
-   ↓
-Final Answer
+Job Completion + SSE Updates
 ```
 
 ---
 
-## 📄 PDF Processing Strategy
+## ❓ Query Flow
 
-Assessly uses a **layout-aware parsing approach** to extract structured content:
-
-```python
-def parse_pdf(file_path: str):
-    elements = partition_pdf(
-        filename=file_path,
-        strategy="hi_res",
-        infer_table_structure=True,
-        include_page_breaks=True,
-        chunking_strategy=None,
-    )
-    return elements
+```text
+User Question
+   ↓
+FastAPI Query API
+   ↓
+Redis Query Queue
+   ↓
+Query Worker
+   ↓
+Hybrid Retrieval
+   ↓
+Parent Context Assembly
+   ↓
+LLM Generation
+   ↓
+Streaming Result Updates
 ```
 
-### ✅ What We Extract
+---
 
-* Headings (Title-aware)
-* Paragraphs (Narrative text)
-* Lists
-* Basic tables
-* Page structure (for context preservation)
+## 🔐 Authentication Flow
 
-> 🚧 OCR (for scanned PDFs) is not enabled yet but planned in future releases.
+Supported flows:
+
+- User registration
+- Login
+- JWT authentication
+- Refresh tokens
+- Guest/demo mode
+
+Guest users:
+
+- can use demo querying
+- cannot upload private documents
+- cannot delete documents
 
 ---
 
-## 📄 Supported PDF Types
+## 📡 API Endpoints
 
-### ✅ Recommended
+### Authentication
 
-* Digitally generated PDFs
-* Text-based documents (copy/paste works)
-* Structured reports with headings and paragraphs
-* Educational materials (books, notes)
+```text
+POST /auth/register
+POST /auth/login
+POST /auth/guest
+POST /auth/refresh
+POST /auth/logout
+GET  /auth/me
+```
 
-### ⚠️ Partial Support
+### Ingestion
 
-* PDFs with simple tables
-* Documents with limited images (non-critical)
+```text
+POST /ingest
+GET  /ingest/jobs/{job_id}
+GET  /ingest/stream/{job_id}
+```
 
-### ❌ Not Recommended
+### Query
 
-* Scanned PDFs (image-based)
-* Handwritten documents
-* Image-heavy PDFs (charts/diagrams as core content)
-* Complex multi-column layouts (research papers, magazines)
-* Financial/complex tabular reports
+```text
+POST /query
+GET  /query/jobs/{query_job_id}
+GET  /query/jobs/{query_job_id}/stream
+```
 
-> 💡 Tip: If you can **select text in the PDF**, Assessly will work best.
+### Knowledge Base
 
----
+```text
+GET    /knowledge-base/files
+DELETE /knowledge-base/files/{document_id}
+```
 
-## 🎯 Accuracy Expectations
+### Health
 
-* 🟢 High → clean, structured PDFs
-* 🟡 Moderate → mixed content (text + tables)
-* 🔴 Limited → scanned or image-heavy PDFs
-
-### 🚀 Upcoming Improvements
-
-* OCR support
-* Image & diagram understanding
-* Advanced table parsing
-* Layout intelligence
-
----
-
-## 🏗️ Project Structure (Monorepo)
-
-<p align="center">
-  <img src="Project-Structure-Assessly.png" width="800"/>
-</p>
+```text
+GET /health/redis
+GET /health/qdrant
+GET /health/postgres
+```
 
 ---
 
 ## 🐳 Docker Setup
 
-### Run Full Stack
+### Development Infrastructure
 
 ```bash
-docker-compose up --build
+docker compose up -d redis qdrant postgres worker query_worker
 ```
 
-### Services
+### Production-Style Stack
 
-* Frontend → http://localhost:4200
-* Backend → http://localhost:8000
+```bash
+docker compose -f docker-compose.prod.yml up -d --build
+```
+
+### Useful Checks
+
+```bash
+docker compose ps
+docker compose logs -f worker
+docker compose logs -f query_worker
+docker compose logs -f redis
+docker compose logs -f qdrant
+docker compose logs -f postgres
+```
 
 ---
 
@@ -211,89 +438,163 @@ docker-compose up --build
 
 ```bash
 git clone https://github.com/your-username/assessly.git
-cd assessly
+cd Assessly
 ```
-
----
 
 ### 2️⃣ Backend Setup
 
 ```bash
 cd backend
+
 python -m venv venv
 venv\Scripts\activate
 
 pip install -r requirements.txt
+
+alembic upgrade head
+
 uvicorn app.main:app --reload
 ```
 
----
+Backend:
+
+```text
+http://localhost:8000
+```
 
 ### 3️⃣ Frontend Setup
 
 ```bash
 cd frontend
+
 npm install
-ng serve
+npm start
+```
+
+Frontend:
+
+```text
+http://localhost:4200
+```
+
+### 4️⃣ Model Runtime
+
+Assessly expects an Ollama-compatible API configured by `OLLAMA_BASE_URL`.
+
+Example local models:
+
+```bash
+ollama pull bge-m3
+ollama pull qwen2.5:7b
 ```
 
 ---
 
-### 🔗 Environment Config
+## 🧪 How To Use
 
-Create:
+1. Register or log in
+2. Upload a PDF
+3. Watch ingestion progress live
+4. Ask questions against your knowledge base
+5. Receive grounded AI-generated answers
+6. View or delete your own knowledge-base files
 
-```ts
-src/environments/environment.ts
-```
+Guest mode:
 
-```ts
-export const environment = {
-  production: false,
-  apiUrl: 'http://localhost:8000'
-};
-```
-
----
-
-## 🧪 How to Use
-
-1. Upload a supported PDF
-2. Wait for processing
-3. Ask a question
-4. Get context-aware answers instantly
+- Guest users can use demo/query flows
+- Guest users cannot upload or delete private documents
 
 ---
 
-## 🔮 Roadmap
+## 📊 Production Readiness Status
 
-* [ ] OCR support (scanned PDFs)
-* [ ] Image & diagram understanding
-* [ ] Advanced chunking strategies
-* [ ] Multi-document querying
-* [ ] Authentication & user sessions
-* [ ] Cloud deployment (AWS/GCP/Azure)
-* [ ] SaaS multi-tenant architecture
+Assessly has a strong production-grade architecture direction and several production-style foundations already implemented.
+
+### ✅ Implemented Foundations
+
+- Worker-based ingestion
+- Worker-based querying
+- Redis Streams architecture
+- PostgreSQL metadata persistence
+- Qdrant hybrid retrieval
+- JWT authentication
+- Multi-user isolation
+- SSE streaming logs
+- Docker Compose infrastructure
+- Alembic migrations
+- Rate limiting
+- Upload size limits
+- Safe re-ingestion handling
+- Health endpoints
+- OCR support
+- Image and diagram understanding
+
+### 🚧 Still In Progress
+
+- Full automated test coverage
+- Advanced monitoring and observability
+- Structured centralized logging
+- Production migration automation
+- Horizontal worker scaling
+- Advanced citations and confidence scoring
+- Advanced OCR and image-heavy PDF understanding
+- Backup and restore strategy
+- HTTPS reverse proxy and production secret management
+- Load testing for expected concurrent usage
+
+---
+
+## 📁 Repository Structure
+
+```text
+backend/
+  app/
+    api/                 FastAPI routers
+    core/                config and shared clients
+    db/                  Postgres and Qdrant clients
+    models/              Pydantic and SQLAlchemy models
+    services/            auth, queues, metadata, RAG, retrieval, parsing
+    worker.py            ingestion worker
+    query_worker.py      query worker
+  alembic/               database migrations
+  Dockerfile
+  requirements.txt
+
+frontend/
+  src/app/features/      Angular UI components
+  Dockerfile
+  package.json
+
+docker-compose.yml       development infrastructure/workers
+docker-compose.prod.yml  production-style stack
+```
 
 ---
 
 ## 💡 Vision
 
-Assessly aims to become a **next-generation AI knowledge platform** that:
+Assessly aims to explore what production-grade AI knowledge systems should actually look like.
 
-* Converts documents into intelligent systems
-* Enables natural language querying
-* Delivers accurate, explainable answers
+The focus is not only on LLM responses — but also on:
+
+- scalable retrieval architecture
+- reliable ingestion systems
+- multi-user isolation
+- durable metadata
+- background worker orchestration
+- enterprise-style RAG engineering
+
+The long-term goal is to evolve Assessly into a next-generation AI knowledge platform capable of handling real operational and enterprise documentation workflows.
 
 ---
 
 ## 👨‍💻 Author
 
-**Imran Bahelim**
-Lead Fullstack + AI Engineer | imrankhan.er01@gmail.com
+Imran Bahelim  
+Lead Fullstack + AI Engineer
 
 ---
 
 ## ⭐ Support
 
-If you like this project, give it a ⭐ on GitHub!
+If you like this project, consider giving it a ⭐ on GitHub.

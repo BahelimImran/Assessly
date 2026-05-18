@@ -1,0 +1,39 @@
+# Environment, secrets, and private local files
+.env
+.env.*
+*.env
+secrets/
+credentials/
+private/
+private_documents/
+
+# Python/local runtime files
+venv/
+.venv/
+__pycache__/
+*.py[cod]
+*.pyo
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# App runtime data and generated artifacts
+uploads/
+qdrant_data/
+qdrant_db/
+chromadb/
+app.zip
+
+# Logs and editor files
+logs/
+*.log
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Git
+.git/
+.gitignore

@@ -66,6 +66,22 @@ body {
   cursor: pointer;
 }
 
+.upload-box .replace-confirm-btn {
+  background: #f59e0b;
+  color: #1f2937;
+  font-weight: 600;
+}
+
+.upload-box .replace-confirm-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.duplicate-status {
+  color: #fbbf24;
+  font-weight: 600;
+}
+
 .status {
   font-size: 12px;
   margin-top: 10px;
@@ -322,4 +338,67 @@ h2 {
 
 p {
   font-size: clamp(12px, 1.5vw, 20px);
+}
+
+/* user style */
+.user-panel {
+  padding: 12px;
+  /* border: 1px solid #ddd; */
+  border-radius: 8px;
+  margin-bottom: 16px;
+  /* background: #fafafa; */
+}
+
+.user-panel label {
+  display: block;
+  font-weight: 600;
+  margin-bottom: 6px;
+}
+
+.user-input {
+  width: 100%;
+  padding: 10px;
+  border: 1px solid #ccc;
+  border-radius: 6px;
+  margin-bottom: 10px;
+}
+
+.user-panel button {
+  padding: 8px 14px;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  margin-right: 8px;
+  margin-bottom: 8px;
+}
+
+.user-panel button:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.active-user {
+  margin-top: 8px;
+  font-size: 13px;
+}
+
+.auth-tabs {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.auth-tabs button {
+  background: #2a2b32;
+  color: #ddd;
+}
+
+.auth-tabs .active-auth-tab {
+  background: #10a37f;
+  color: white;
+}
+
+.guest-btn {
+  background: #f3f4f6;
+  color: #111827;
 }

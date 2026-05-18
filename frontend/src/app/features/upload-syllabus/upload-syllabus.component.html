@@ -5,9 +5,83 @@
     <h2>🧠 Assessly AI</h2>
     <p class="tagline">RAG Knowledge Assistant</p>
 
-    <div class="upload-box">
-      <h4 style="color: #10a37f;display: flex;justify-content: center;font-size: 18px;">Best results with text-based
-        PDFs.<br>Scanned files may not work accurately.</h4>
+    <div class="user-panel">
+      <ng-container *ngIf="!isAuthenticated; else activeSession">
+        <div class="auth-tabs">
+          <button type="button" [class.active-auth-tab]="authMode === 'login'" (click)="authMode = 'login'">
+            Login
+          </button>
+          <button type="button" [class.active-auth-tab]="authMode === 'register'" (click)="authMode = 'register'">
+            Register
+          </button>
+        </div>
+
+        <label for="authUsername">Username</label>
+        <input
+          id="authUsername"
+          type="text"
+          [(ngModel)]="authUsername"
+          placeholder="Enter username"
+          class="user-input"
+        />
+
+        <label *ngIf="authMode === 'register'" for="authEmail">Email optional</label>
+        <input
+          *ngIf="authMode === 'register'"
+          id="authEmail"
+          type="email"
+          [(ngModel)]="authEmail"
+          placeholder="name@example.com"
+          class="user-input"
+        />
+
+        <label for="authPassword">Password</label>
+        <input
+          id="authPassword"
+          type="password"
+          [(ngModel)]="authPassword"
+          placeholder="At least 8 characters"
+          class="user-input"
+        />
+
+        <button
+          *ngIf="authMode === 'login'"
+          type="button"
+          (click)="login()"
+          [disabled]="!authUsername.trim() || !authPassword"
+        >
+          Login
+        </button>
+
+        <button
+          *ngIf="authMode === 'register'"
+          type="button"
+          (click)="register()"
+          [disabled]="!authUsername.trim() || authPassword.length < 8"
+        >
+          Register
+        </button>
+
+        <button type="button" class="guest-btn" (click)="continueAsGuest()">
+          Continue as Guest
+        </button>
+
+        <p *ngIf="authMessage" class="status duplicate-status">{{ authMessage }}</p>
+      </ng-container>
+
+      <ng-template #activeSession>
+        <p class="active-user">
+          Active user: <strong>{{ authUser?.username }}</strong>
+        </p>
+        <p class="active-user">
+          Role: <strong>{{ authUser?.role }}</strong>
+        </p>
+        <button type="button" (click)="logout()">Logout</button>
+      </ng-template>
+    </div>
+    <div class="upload-box" *ngIf="canUpload">
+      <!-- <h4 style="color: #10a37f;display: flex;justify-content: center;font-size: 18px;">Best results with text-based
+        PDFs.<br>Scanned files may not work accurately.</h4> -->
 
       <label class="upload-btn-white">
         📂 Upload PDF
@@ -18,11 +92,24 @@
       </button>
 
       <p class="status">{{ pickedFile }}</p>
-      <p *ngIf="logs.length == 0" class="status">{{ message }}</p>
+      <p *ngIf="logs.length == 0" class="status" [class.duplicate-status]="duplicatePending">{{ message }}</p>
+
+      <button
+        *ngIf="duplicatePending"
+        type="button"
+        class="replace-confirm-btn"
+        (click)="confirmReplacement()"
+        [disabled]="isUploading"
+      >
+        Confirm Replace Document
+      </button>
     </div>
+    <p *ngIf="isGuestMode" class="status duplicate-status">
+      Guest mode can view and query demo documents only. Upload and delete are disabled.
+    </p>
     <div *ngIf="logs.length > 0">
       <h4>
-        <svg *ngIf="message != '✅ All set! You can start asking questions now.'" width="50" height="20" viewBox="0 0 50 20">
+        <svg *ngIf="ingestionProcessing" width="50" height="20" viewBox="0 0 50 20">
           <circle cx="10" cy="10" r="4" fill="#aaa">
             <animate attributeName="opacity" values="0.2;1;0.2" dur="1.2s" repeatCount="indefinite" begin="0s"></animate>
           </circle>
@@ -41,12 +128,21 @@
     </div>
 
     <div class="tech-box">
+        <div class="info-panel rag-panel">
+          <h3 style="font-size: 18px;margin-top: 0px;margin-bottom: 10px;">🧠 Knowledge Base</h3>
+          <div *ngFor="let file of files">
+                📄 {{ file.source_file }} — {{ file.chunk_count }} chunks
+          </div>
+        </div>
+    </div>
+
+    <!-- <div class="tech-box">
 
       <div class="info-panel rag-panel">
 
-        <h3 style="font-size: 18px;">🧠 RAG Pipeline</h3>
+        <h3 style="font-size: 18px;">RAG Pipeline</h3>
 
-        <!-- COMPONENT DETAILS -->
+        -- COMPONENT DETAILS --
         <div class="info-section">
           <h4 style="font-size: 16px;">⚙️ Components</h4>
 
@@ -56,20 +152,20 @@
           </div>
         </div>
 
-        <!-- BADGE -->
+        <-- BADGE --
         <div class="tech-item">
           <strong>🚀 Design Philosophy</strong>
           <p class="badge">
             Built for scalable semantic retrieval, low-latency inference, and explainable AI responses.
           </p>
         </div>
-        <!-- <p class="badge">
+        <-- <p class="badge">
           🚀 Built for scalable semantic retrieval, low-latency inference, and explainable AI responses.
-        </p> -->
+        </p> --
 
       </div>
 
-    </div>
+    </div> -->
 
   </aside>
 
@@ -81,7 +177,7 @@
 
       <div *ngIf="!isQuerying" class="empty-state">
         <h2>Ask anything from your documents</h2>
-        <p>Upload a file and start querying</p>
+        <p>{{ isAuthenticated ? 'Upload a file or use demo mode and start querying' : 'Login, register, or continue as guest' }}</p>
       </div>
       <div *ngFor="let qa of listOfQA">
         <div *ngIf="qa.question" class="message user question">
@@ -90,8 +186,9 @@
 
         <!-- <p>{{qa.isQuerying}}</p> -->
         <span *ngIf="qa.isQuerying" class="message ai answer">
-          <!-- ⏳ Thinking... -->
-          <svg width="50" height="20" viewBox="0 0 50 20">
+
+          <!-- <span *ngIf="qa.status">{{ qa.status }}</span> -->
+          <!-- <svg width="50" height="20" viewBox="0 0 50 20">
             <circle cx="10" cy="10" r="4" fill="#aaa">
               <animate attributeName="opacity" values="0.2;1;0.2" dur="1.2s" repeatCount="indefinite" begin="0s" />
             </circle>
@@ -101,7 +198,82 @@
             <circle cx="40" cy="10" r="4" fill="#aaa">
               <animate attributeName="opacity" values="0.2;1;0.2" dur="1.2s" repeatCount="indefinite" begin="0.4s" />
             </circle>
-          </svg>
+          </svg> -->
+          <!-- <svg width="320" height="60" viewBox="0 0 320 60" xmlns="http://www.w3.org/2000/svg">
+  <style>
+    .status-text {
+      font-family: Arial, sans-serif;
+      font-size: 24px;
+      font-weight: bold;
+      animation: blinkColors 1.5s infinite;
+    }
+
+    @keyframes blinkColors {
+      0% { fill: gold; opacity: 1; }
+      33% { fill: red; opacity: 0.7; }
+      66% { fill: #2196f3; opacity: 1; }
+      100% { fill: gold; opacity: 0.8; }
+    }
+  </style>
+
+  <rect width="320" height="60" rx="12" fill="#111827"/>
+
+  <text
+    x="50%"
+    y="50%"
+    dominant-baseline="middle"
+    text-anchor="middle"
+    class="status-text"
+  >
+    {{ qa.status }}
+  </text>
+</svg> -->
+
+<svg width="50" height="20" viewBox="0 0 50 20">
+  
+  <circle cx="10" cy="10" r="4">
+    <animate attributeName="opacity"
+             values="0.2;1;0.2"
+             dur="1.2s"
+             repeatCount="indefinite"
+             begin="0s" />
+             
+    <animate attributeName="fill"
+             values="gold;red;#2196f3;gold"
+             dur="1.2s"
+             repeatCount="indefinite"
+             begin="0s" />
+  </circle>
+
+  <circle cx="25" cy="10" r="4">
+    <animate attributeName="opacity"
+             values="0.2;1;0.2"
+             dur="1.2s"
+             repeatCount="indefinite"
+             begin="0.2s" />
+             
+    <animate attributeName="fill"
+             values="gold;red;#2196f3;gold"
+             dur="1.2s"
+             repeatCount="indefinite"
+             begin="0.2s" />
+  </circle>
+
+  <circle cx="40" cy="10" r="4">
+    <animate attributeName="opacity"
+             values="0.2;1;0.2"
+             dur="1.2s"
+             repeatCount="indefinite"
+             begin="0.4s" />
+             
+    <animate attributeName="fill"
+             values="gold;red;#2196f3;gold"
+             dur="1.2s"
+             repeatCount="indefinite"
+             begin="0.4s" />
+  </circle>
+
+</svg>
         </span>
 
         <div *ngIf="qa.answer"  class="message ai answer">
@@ -114,11 +286,11 @@
 
     <!-- INPUT BOX -->
     <div class="input-box">
-      <input [(ngModel)]="question" name="question" [disabled]="askDisable"
+      <input [(ngModel)]="question" name="question" [disabled]="askDisable || !isAuthenticated"
         style="width: 100%;height: 50px;font-size: 18px;"
         placeholder="Ask a question about your document..." />
 
-      <button (click)="getAnswer()" [disabled]="askDisable" style="font-size: 18px;">
+      <button (click)="getAnswer()" [disabled]="askDisable || !isAuthenticated" style="font-size: 18px;">
         Ask
       </button>
     </div>
