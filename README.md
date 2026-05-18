@@ -6,6 +6,8 @@ Users can upload documents, process them through a scalable AI pipeline, and ask
 
 Built with a modern full-stack architecture, Assessly focuses not only on AI capabilities — but also on the real engineering challenges involved in building production-grade RAG systems.
 
+🎥Demo Video: https://www.linkedin.com/feed/update/urn:li:activity:7453663316465422337/
+
 ---
 
 🎥 Demo Video:  
