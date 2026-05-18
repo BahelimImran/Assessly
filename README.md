@@ -13,6 +13,12 @@ https://www.linkedin.com/feed/update/urn:li:activity:7453663316465422337/
 
 ---
 
+## 🏗️ Architecture Overview
+
+image
+
+---
+
 ## 🚀 Key Features
 
 ### 📄 Intelligent Document Processing
@@ -60,34 +66,6 @@ https://www.linkedin.com/feed/update/urn:li:activity:7453663316465422337/
 - Redis infrastructure
 - Docker Compose deployment
 - Modular AI architecture
-
----
-
-## 🏗️ Architecture Overview
-
-```text
-Angular Frontend
-        |
-        | REST + SSE
-        v
-FastAPI Backend
-        |
-        | Auth + Validation + Job Creation
-        v
-Redis Streams
-   |                     |
-   | ingestion_jobs      | query_jobs
-   v                     v
-Ingestion Worker      Query Worker
-   |                     |
-   | Parse + Chunk       | Retrieve + Generate
-   | Embed + Store       | Context Assembly
-   v                     v
-Qdrant Vector DB      Ollama / LLM Provider
-        |
-        v
-PostgreSQL Metadata Layer
-```
 
 ---
 
