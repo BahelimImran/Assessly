@@ -10,11 +10,6 @@ Built with a modern full-stack architecture, Assessly focuses not only on AI cap
 
 ---
 
-🎥 Demo Video:  
-https://www.linkedin.com/feed/update/urn:li:activity:7453663316465422337/
-
----
-
 ## 🏗️ Architecture Overview
 
 <img width="1672" height="941" alt="Assessly" src="https://github.com/user-attachments/assets/fb4f1a06-04ee-4c9e-800b-e5417eb93247" />
