@@ -7,7 +7,9 @@ import { environment } from '../../../environments/environment';
 interface QA  {
   question : string,
   isQuerying : boolean,
-  answer:string
+  answer:string,
+  queryJobId?: string,
+  status?: string
 };
 
 interface AuthUser {
@@ -422,7 +424,8 @@ Context ranking tuned for relevance and minimal hallucination.`
       this.listOfQA.push({
         "question": this.question,
         "isQuerying" : true,
-        "answer": this.answer
+        "answer": this.answer,
+        "status": "queued"
       });
 
     this.http.post(`${this.apiBaseUrl}/query`, {
@@ -431,12 +434,11 @@ Context ranking tuned for relevance and minimal hallucination.`
       headers: this.authHeaders()
     }).subscribe({
       next: (res: any) => {
-        this.answer = res.answer || 'No answer found';
-        
-        // this.isQuerying = false;
-        this.listOfQA[this.listOfQA.length-1].answer = this.answer;
-        this.listOfQA[this.listOfQA.length-1].isQuerying = false;
-        this.askDisable = false;
+        const currentQA = this.listOfQA[this.listOfQA.length - 1];
+        currentQA.queryJobId = res.query_job_id;
+        currentQA.status = res.status || 'queued';
+        currentQA.answer = '⏳ Thinking...';
+        this.startQueryStream(res.query_job_id, this.listOfQA.length - 1);
         this.cd.detectChanges();
       },
       error: (err) => {
@@ -449,5 +451,61 @@ Context ranking tuned for relevance and minimal hallucination.`
       }
     });
   }
-}
 
+  startQueryStream(queryJobId: string, qaIndex: number) {
+    const token = encodeURIComponent(this.accessToken);
+    const eventSource = new EventSource(`${this.apiBaseUrl}/query/jobs/${queryJobId}/stream?access_token=${token}`);
+
+    eventSource.onmessage = (event) => {
+      if (event.data && event.data !== '{}') {
+        const payload = JSON.parse(event.data);
+        const qa = this.listOfQA[qaIndex];
+        qa.status = payload.status;
+        qa.answer = payload.message;
+      }
+
+      this.getQueryJobStatus(queryJobId, qaIndex, eventSource);
+      this.cd.detectChanges();
+    };
+
+    eventSource.onerror = () => {
+      eventSource.close();
+      this.getQueryJobStatus(queryJobId, qaIndex);
+    };
+  }
+
+  getQueryJobStatus(queryJobId: string, qaIndex: number, eventSource?: EventSource) {
+    this.http.get(`${this.apiBaseUrl}/query/jobs/${queryJobId}`, {
+      headers: this.authHeaders()
+    }).subscribe({
+      next: (job: any) => {
+        const qa = this.listOfQA[qaIndex];
+        qa.status = job.status;
+
+        if (job.status === 'completed') {
+          qa.answer = job.answer || 'No answer found';
+          qa.isQuerying = false;
+          this.askDisable = false;
+          eventSource?.close();
+        }
+
+        if (job.status === 'failed') {
+          qa.answer = job.error || 'Query failed';
+          qa.isQuerying = false;
+          this.askDisable = false;
+          eventSource?.close();
+        }
+
+        this.cd.detectChanges();
+      },
+      error: (err) => {
+        const qa = this.listOfQA[qaIndex];
+        qa.answer = this.handleProtectedApiError(err, 'Error fetching query status');
+        qa.isQuerying = false;
+        this.askDisable = false;
+        eventSource?.close();
+        this.cd.detectChanges();
+      }
+    });
+  }
+}

@@ -855,8 +855,11 @@ def validate_grounding(answer, chunks, confidence):
     return has_source_reference
 
 
-def generate_answer(question: str, filters: dict | None = None):
+def generate_answer(question: str, filters: dict | None = None, progress_callback=None):
     logger.info("Generating answer")
+
+    if progress_callback:
+        progress_callback("retrieving", "Retrieving documents")
 
     chunks = query_rag(question, filters)
 
@@ -872,6 +875,9 @@ def generate_answer(question: str, filters: dict | None = None):
                 "No relevant chunks were retrieved from the knowledge base."
             ]
         }
+
+    if progress_callback:
+        progress_callback("reranking", "Reranking chunks")
 
     confidence = calculate_confidence(chunks)
     # Confidence should mostly be shown to the user, not used as the only decision-maker.
@@ -891,6 +897,9 @@ def generate_answer(question: str, filters: dict | None = None):
      return "Not found in document."
 
     logger.info("Prompt constructed; sending to LLM")
+
+    if progress_callback:
+        progress_callback("generating", "Generating answer")
 
     context = build_context(chunks)
     prompt = create_prompt(question, context)

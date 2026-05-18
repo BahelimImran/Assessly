@@ -1,7 +1,7 @@
 import os
 from datetime import datetime
 
-from app.core.config import JOB_TTL_SECONDS, UPLOAD_DIR
+from app.core.config import AUTO_CREATE_DB_TABLES, JOB_TTL_SECONDS, UPLOAD_DIR
 from app.db.qdrant_client import delete_upload_session_points
 from app.db.postgres import init_db #New Postgres Init Import
 from app.services.job_queue import ack_job, dequeue_job
@@ -26,7 +26,8 @@ from app.services.redis_client import redis_client
 # Why:
 # Development convenience. Since worker runs in Docker, this prevents worker from failing if tables do not exist yet.
 
-init_db()
+if AUTO_CREATE_DB_TABLES:
+    init_db()
 
 
 def utc_now() -> str:

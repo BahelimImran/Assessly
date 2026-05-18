@@ -186,8 +186,9 @@
 
         <!-- <p>{{qa.isQuerying}}</p> -->
         <span *ngIf="qa.isQuerying" class="message ai answer">
-          <!-- ⏳ Thinking... -->
-          <svg width="50" height="20" viewBox="0 0 50 20">
+
+          <!-- <span *ngIf="qa.status">{{ qa.status }}</span> -->
+          <!-- <svg width="50" height="20" viewBox="0 0 50 20">
             <circle cx="10" cy="10" r="4" fill="#aaa">
               <animate attributeName="opacity" values="0.2;1;0.2" dur="1.2s" repeatCount="indefinite" begin="0s" />
             </circle>
@@ -197,7 +198,82 @@
             <circle cx="40" cy="10" r="4" fill="#aaa">
               <animate attributeName="opacity" values="0.2;1;0.2" dur="1.2s" repeatCount="indefinite" begin="0.4s" />
             </circle>
-          </svg>
+          </svg> -->
+          <!-- <svg width="320" height="60" viewBox="0 0 320 60" xmlns="http://www.w3.org/2000/svg">
+  <style>
+    .status-text {
+      font-family: Arial, sans-serif;
+      font-size: 24px;
+      font-weight: bold;
+      animation: blinkColors 1.5s infinite;
+    }
+
+    @keyframes blinkColors {
+      0% { fill: gold; opacity: 1; }
+      33% { fill: red; opacity: 0.7; }
+      66% { fill: #2196f3; opacity: 1; }
+      100% { fill: gold; opacity: 0.8; }
+    }
+  </style>
+
+  <rect width="320" height="60" rx="12" fill="#111827"/>
+
+  <text
+    x="50%"
+    y="50%"
+    dominant-baseline="middle"
+    text-anchor="middle"
+    class="status-text"
+  >
+    {{ qa.status }}
+  </text>
+</svg> -->
+
+<svg width="50" height="20" viewBox="0 0 50 20">
+  
+  <circle cx="10" cy="10" r="4">
+    <animate attributeName="opacity"
+             values="0.2;1;0.2"
+             dur="1.2s"
+             repeatCount="indefinite"
+             begin="0s" />
+             
+    <animate attributeName="fill"
+             values="gold;red;#2196f3;gold"
+             dur="1.2s"
+             repeatCount="indefinite"
+             begin="0s" />
+  </circle>
+
+  <circle cx="25" cy="10" r="4">
+    <animate attributeName="opacity"
+             values="0.2;1;0.2"
+             dur="1.2s"
+             repeatCount="indefinite"
+             begin="0.2s" />
+             
+    <animate attributeName="fill"
+             values="gold;red;#2196f3;gold"
+             dur="1.2s"
+             repeatCount="indefinite"
+             begin="0.2s" />
+  </circle>
+
+  <circle cx="40" cy="10" r="4">
+    <animate attributeName="opacity"
+             values="0.2;1;0.2"
+             dur="1.2s"
+             repeatCount="indefinite"
+             begin="0.4s" />
+             
+    <animate attributeName="fill"
+             values="gold;red;#2196f3;gold"
+             dur="1.2s"
+             repeatCount="indefinite"
+             begin="0.4s" />
+  </circle>
+
+</svg>
         </span>
 
         <div *ngIf="qa.answer"  class="message ai answer">
