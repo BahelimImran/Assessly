@@ -23,6 +23,7 @@ from app.services.job_queue import enqueue_job
 from app.services.metadata_repository import get_document_by_hash, prepare_upload_metadata
 from app.services.rate_limiter import enforce_fixed_window_rate_limit
 from app.services.auth_dependencies import AuthPrincipal, require_user
+from app.services.stream_token_service import create_stream_token, validate_stream_token
 
 
 
@@ -337,10 +338,9 @@ async def get_job_status(
 
 #     return EventSourceResponse(event_generator())
 
-@router.get("/stream/{job_id}")
-async def stream_logs(
+@router.post("/jobs/{job_id}/stream-token")
+async def create_ingestion_stream_token(
     job_id: str,
-    request: Request,
     principal: AuthPrincipal = Depends(require_user),
 ):
     job = await JobManager.get_job(job_id)
@@ -348,6 +348,33 @@ async def stream_logs(
         raise HTTPException(status_code=404, detail="Job not found")
 
     if job.get("user_id") != principal.user_id and not principal.is_admin:
+        raise HTTPException(status_code=403, detail="You cannot access this job stream.")
+
+    return {
+        "stream_token": create_stream_token(
+            purpose="ingest",
+            job_id=job_id,
+            user_id=job.get("user_id"),
+        )
+    }
+
+
+@router.get("/stream/{job_id}")
+async def stream_logs(
+    job_id: str,
+    request: Request,
+    stream_token: str | None = None,
+):
+    job = await JobManager.get_job(job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+
+    token_user_id = validate_stream_token(
+        purpose="ingest",
+        job_id=job_id,
+        token=stream_token,
+    )
+    if not token_user_id or job.get("user_id") != token_user_id:
         raise HTTPException(status_code=403, detail="You cannot access this job stream.")
 
     async def event_generator():

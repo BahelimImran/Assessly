@@ -1,3 +1,5 @@
+import logging
+
 # from app.db.chroma_client import collection
 from app.db.qdrant_client import qdrant
 from qdrant_client.models import Filter, FieldCondition, MatchAny, MatchValue
@@ -13,6 +15,8 @@ from typing import List, Dict, Any
 import numpy as np
 from app.services.model_client import post_json_with_retry
 
+
+logger = logging.getLogger(__name__)
 
 
 def get_sparse_embedding(text: str):
@@ -95,22 +99,17 @@ def hybrid_search_child_chunks(
         values=sparse_query.values.tolist(),
     )
 
-    print("CHILD_COLLECTION:", CHILD_COLLECTION)
-    print("top_k:", top_k)
-    print("prefetch_limit:", prefetch_limit)
-    print("qdrant_filter:", qdrant_filter)
-    print("dense_query len:", len(dense_query))
-    print("sparse indices:", len(sparse_vector.indices))
-    print("sparse values:", len(sparse_vector.values))
-
-    info = qdrant.get_collection(CHILD_COLLECTION)
-    print("collection info:", info)
-
-    count = qdrant.count(
-        collection_name=CHILD_COLLECTION,
-        exact=True
+    logger.info(
+        "Hybrid child chunk search prepared",
+        extra={
+            "collection": CHILD_COLLECTION,
+            "top_k": top_k,
+            "prefetch_limit": prefetch_limit,
+            "dense_dimensions": len(dense_query),
+            "sparse_terms": len(sparse_vector.indices),
+            "has_filter": qdrant_filter is not None,
+        },
     )
-    print("child count:", count.count)
 
     response = qdrant.query_points(
         collection_name=CHILD_COLLECTION,
