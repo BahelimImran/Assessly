@@ -18,6 +18,12 @@ interface AuthUser {
   role: string;
   email?: string | null;
 }
+
+interface StreamTokenResponse {
+  stream_token: string;
+}
+
+const ACCESS_TOKEN_STORAGE_KEY = 'assessly_access_token';
 @Component({
   selector: 'app-upload-syllabus',
   standalone: true,
@@ -32,7 +38,7 @@ export class UploadSyllabusComponent implements OnInit{
 
   activeUserId: string = '';
   userId = '';
-  accessToken = localStorage.getItem('assessly_access_token') || '';
+  accessToken = sessionStorage.getItem(ACCESS_TOKEN_STORAGE_KEY) || '';
   authUser: AuthUser | null = null;
   authMode: 'login' | 'register' = 'login';
   authUsername = '';
@@ -62,15 +68,15 @@ export class UploadSyllabusComponent implements OnInit{
   },
   {
     title: 'Embeddings',
-    value: 'Numic-embed-text'
+    value: 'bge-m3'
   },
   {
     title: 'Vector DB',
-    value: 'ChromaDB'
+    value: 'Qdrant'
   },
   {
     title: 'LLM',
-    value: 'Ollama (Mistral)'
+    value: 'Ollama (qwen2.5:7b)'
   }
 ];
 
@@ -80,13 +86,13 @@ demoInfo = {
   mode: 'Demo Mode',
   description: 'This application demonstrates a production-style RAG pipeline with real-time ingestion and querying.',
   infra: [
-    'Backend runs locally via secure tunnel (ngrok)',
-    'Frontend hosted separately (Angular SPA)',
-    'Vector DB persisted locally (ChromaDB)'
+    'FastAPI backend with Redis-backed workers',
+    'Angular SPA frontend',
+    'Qdrant vector database with PostgreSQL metadata'
   ],
   limitations: [
-    'Backend availability depends on local machine',
-    'ngrok URL may change on restart'
+    'Demo mode uses seeded/demo documents only',
+    'Local model latency depends on the configured Ollama server'
   ],
   strengths: [
     'Real-time document ingestion',
@@ -100,10 +106,10 @@ showRagInfo: boolean = false;
 ragArchitecture = {
   pipeline: [
     'Document Upload',
-    'PDF Parsing (unstructured)',
+    'PDF Parsing (Docling)',
     'Semantic Chunking',
     'Embedding Generation',
-    'Vector Storage (ChromaDB)',
+    'Vector Storage (Qdrant)',
     'Query Embedding',
     'Similarity Search',
     'Context Injection',
@@ -111,35 +117,35 @@ ragArchitecture = {
   ],
   components: [
     {
-      title: '📄 Chunking',
-      value: `Custom semantic + title-aware chunking using unstructured.partition.pdf
+      title: 'Chunking',
+      value: `Docling-based parsing with parent and child chunk creation.
 Optimized to preserve document structure and context continuity.`
     },
     {
-      title: '🧠 Embeddings',
-      value: `Nomic AI – nomic-embed-text (via Ollama)
+      title: 'Embeddings',
+      value: `bge-m3 via Ollama
 High-quality dense vector embeddings optimized for semantic search.`
     },
     {
-      title: '🗂 Vector DB',
-      value: `ChromaDB with metadata filtering
+      title: 'Vector DB',
+      value: `Qdrant with dense, sparse, and metadata-filtered retrieval
 Supports efficient similarity search and document-level traceability.`
     },
     {
-      title: '🔍 Retrieval',
-      value: `Top-K similarity search using cosine similarity
+      title: 'Retrieval',
+      value: `Hybrid dense + sparse retrieval with user and document filters
 Context ranking tuned for relevance and minimal hallucination.`
     },
     {
-      title: '🤖 LLM (Generation)',
-      value: 'Ollama (Mistral) for grounded answers'
+      title: 'LLM Generation',
+      value: 'Ollama qwen2.5:7b for grounded answers'
     },
     {
-      title: '🧩 Orchestration',
-      value: `LangChain-based pipeline for ingestion, retrieval, and response generation.`
+      title: 'Orchestration',
+      value: `FastAPI, Redis Streams, and background workers for ingestion and query jobs.`
     },
     // {
-    //   title: '🚀 Design Philosophy',
+    //   title: 'Design Philosophy',
     //   value: `Built for scalable semantic retrieval, low-latency inference, and explainable AI responses.`
     // }
   ]
@@ -152,14 +158,6 @@ Context ranking tuned for relevance and minimal hallucination.`
   constructor(private http: HttpClient, private cd: ChangeDetectorRef) {}
 
   ngOnInit(): void {
-    console.log(this.listOfQA)
-  // const savedUserId = localStorage.getItem('assessly_user_id');
-
-  // if (savedUserId) {
-  //   this.userId = savedUserId;
-  //   this.activeUserId = savedUserId;
-  // }
-
     this.refreshSession();
   }
 
@@ -187,7 +185,7 @@ Context ranking tuned for relevance and minimal hallucination.`
     this.activeUserId = this.authUser?.user_id || '';
 
     if (this.accessToken) {
-      localStorage.setItem('assessly_access_token', this.accessToken);
+      sessionStorage.setItem(ACCESS_TOKEN_STORAGE_KEY, this.accessToken);
     }
 
     this.getKnowledgeBaseFile();
@@ -201,7 +199,7 @@ Context ranking tuned for relevance and minimal hallucination.`
           this.cd.detectChanges();
         },
         error: () => {
-          localStorage.removeItem('assessly_access_token');
+          sessionStorage.removeItem(ACCESS_TOKEN_STORAGE_KEY);
           this.accessToken = '';
           this.authUser = null;
           this.activeUserId = '';
@@ -270,7 +268,7 @@ Context ranking tuned for relevance and minimal hallucination.`
   }
 
   clearSession(): void {
-    localStorage.removeItem('assessly_access_token');
+    sessionStorage.removeItem(ACCESS_TOKEN_STORAGE_KEY);
     this.accessToken = '';
     this.authUser = null;
     this.activeUserId = '';
@@ -298,8 +296,6 @@ Context ranking tuned for relevance and minimal hallucination.`
   const cleanUserId = this.userId.trim();
 
   if (!cleanUserId) return;
-
-  // localStorage.setItem('assessly_user_id', cleanUserId);
   this.activeUserId = cleanUserId;
   this.getKnowledgeBaseFile();
 }
@@ -388,32 +384,39 @@ Context ranking tuned for relevance and minimal hallucination.`
   }
 
   startLogStream(job_id:string) {
-    const token = encodeURIComponent(this.accessToken);
-    const eventSource = new EventSource(`${this.apiBaseUrl}/ingest/stream/${job_id}?access_token=${token}`);
+    this.http.post<StreamTokenResponse>(`${this.apiBaseUrl}/ingest/jobs/${job_id}/stream-token`, {}, {
+      headers: this.authHeaders()
+    }).subscribe({
+      next: (res) => {
+        const streamToken = encodeURIComponent(res.stream_token);
+        const eventSource = new EventSource(`${this.apiBaseUrl}/ingest/stream/${job_id}?stream_token=${streamToken}`);
 
-    eventSource.onmessage = (event) => {
-      console.log(JSON.parse(event.data).message);
+        eventSource.onmessage = (event) => {
+          const payload = JSON.parse(event.data);
+          const logMessage = payload.message || '';
 
-      // store logs in array (for UI)
-      this.logs.push(JSON.parse(event.data).message);
+          this.logs.push(logMessage);
+          this.message = logMessage;
 
-      // update message with latest log
-      this.message = JSON.parse(event.data).message;
+          if (logMessage.includes('All set')) {
+            this.ingestionProcessing = false;
+            this.getKnowledgeBaseFile();
+          }
 
-      if(JSON.parse(event.data).message === "✅ All set! You can start asking questions now."){
+          this.cd.detectChanges();
+        };
+
+        eventSource.onerror = () => {
+          eventSource.close();
+        };
+      },
+      error: (err) => {
+        this.message = this.handleProtectedApiError(err, 'Could not start ingestion stream');
         this.ingestionProcessing = false;
-        this.getKnowledgeBaseFile();
+        this.cd.detectChanges();
       }
-
-      this.cd.detectChanges();
-    };
-
-    eventSource.onerror = (error) => {
-      console.error('SSE error:', error);
-      eventSource.close();
-    };
+    });
   }
-
 
   getAnswer() {
     if (!this.question || !this.isAuthenticated) return;
@@ -437,7 +440,7 @@ Context ranking tuned for relevance and minimal hallucination.`
         const currentQA = this.listOfQA[this.listOfQA.length - 1];
         currentQA.queryJobId = res.query_job_id;
         currentQA.status = res.status || 'queued';
-        currentQA.answer = '⏳ Thinking...';
+        currentQA.answer = 'Thinking...';
         this.startQueryStream(res.query_job_id, this.listOfQA.length - 1);
         this.cd.detectChanges();
       },
@@ -453,27 +456,39 @@ Context ranking tuned for relevance and minimal hallucination.`
   }
 
   startQueryStream(queryJobId: string, qaIndex: number) {
-    const token = encodeURIComponent(this.accessToken);
-    const eventSource = new EventSource(`${this.apiBaseUrl}/query/jobs/${queryJobId}/stream?access_token=${token}`);
+    this.http.post<StreamTokenResponse>(`${this.apiBaseUrl}/query/jobs/${queryJobId}/stream-token`, {}, {
+      headers: this.authHeaders()
+    }).subscribe({
+      next: (res) => {
+        const streamToken = encodeURIComponent(res.stream_token);
+        const eventSource = new EventSource(`${this.apiBaseUrl}/query/jobs/${queryJobId}/stream?stream_token=${streamToken}`);
 
-    eventSource.onmessage = (event) => {
-      if (event.data && event.data !== '{}') {
-        const payload = JSON.parse(event.data);
+        eventSource.onmessage = (event) => {
+          if (event.data && event.data !== '{}') {
+            const payload = JSON.parse(event.data);
+            const qa = this.listOfQA[qaIndex];
+            qa.status = payload.status;
+            qa.answer = payload.message;
+          }
+
+          this.getQueryJobStatus(queryJobId, qaIndex, eventSource);
+          this.cd.detectChanges();
+        };
+
+        eventSource.onerror = () => {
+          eventSource.close();
+          this.getQueryJobStatus(queryJobId, qaIndex);
+        };
+      },
+      error: (err) => {
         const qa = this.listOfQA[qaIndex];
-        qa.status = payload.status;
-        qa.answer = payload.message;
+        qa.answer = this.handleProtectedApiError(err, 'Could not start query stream');
+        qa.isQuerying = false;
+        this.askDisable = false;
+        this.cd.detectChanges();
       }
-
-      this.getQueryJobStatus(queryJobId, qaIndex, eventSource);
-      this.cd.detectChanges();
-    };
-
-    eventSource.onerror = () => {
-      eventSource.close();
-      this.getQueryJobStatus(queryJobId, qaIndex);
-    };
+    });
   }
-
   getQueryJobStatus(queryJobId: string, qaIndex: number, eventSource?: EventSource) {
     this.http.get(`${this.apiBaseUrl}/query/jobs/${queryJobId}`, {
       headers: this.authHeaders()

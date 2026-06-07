@@ -34,9 +34,8 @@ logger = logging.getLogger(__name__)
 
 # ---------------- INGEST ----------------
 def ingest_pdf(file_path, log, user_id, document_id: str | None = None, document_hash: str | None = None, upload_session_id: str | None = None):
-    print("\n\n\n 📥 Ingesting document...")
-    print(f"\n ⚙️  [File: {file_path}]")
-    
+    logger.info("Ingesting document", extra={"document_id": document_id, "user_id": user_id})
+
     source_file = os.path.basename(file_path)
     document_hash = document_hash or hash_file_bytes(file_path)
     document_id = document_id or document_hash
@@ -60,9 +59,7 @@ def ingest_pdf(file_path, log, user_id, document_id: str | None = None, document
     #         "chunks": len(existing["ids"])
     #     }
 
-    log(f"✔️ 📄 Parsing document structure...{user_id}")
-    print("\n\n\n\n\n 📄 Parsing document structure...")
-    print(f"\n ⚙️  [Hi-res parsing + layout detection]")
+    log(f"✔️ 📄 Parsing document structure...")
     
     # # parse pdf
     # elements = parse_pdf(file_path) 
@@ -292,7 +289,7 @@ def ingest_pdf(file_path, log, user_id, document_id: str | None = None, document
             
 
     # qdrant store
-    log(f"✔️ 📦 Storing vectors(parents, childs) in database...{user_id}")
+    log(f"✔️ 📦 Storing vectors(parents, childs) in database...")
     create_collections()
 
     # qdrant.upsert(
@@ -315,10 +312,7 @@ def ingest_pdf(file_path, log, user_id, document_id: str | None = None, document
             points=batch
         )
 
-    log(f"✔️ ✅ Ingestion complete...{user_id}")
-    print("\n\n\n\n\n ✅ Ingestion complete")
-    print(f"\n ⚙️  [Total ingested chunks: {len(childs_points)} | Status: Success]\n\n\n")	
-    print("=================================================================================")
+    log(f"✔️ ✅ Ingestion complete for document: {document_id}")
     log(f"✅ All set! You can start asking questions now.")
     return {
         "document_id": document_id,
@@ -568,8 +562,6 @@ def update_where_filter_with_child_chunk(where_filter):
     }
 
 def query_rag(query: str, filters: dict | None = None):
-    print("\n\n\n 📚 Searching documents...")
-    print("\n ⚙️ [Hybrid retrieval: Vector top 10 + BM25 top 10]")
 
     filters = filters or {}
     user_id = filters.get("user_id")
@@ -678,7 +670,6 @@ def build_context(chunks):
 
         context_blocks.append(f"{meta_line}\n{chunk.get('content', '')}")
         
-    print(f"context :{context_blocks}")
     return "\n\n---\n\n".join(context_blocks)
 
 # def create_prompt(question: str, context: str):

@@ -10,6 +10,7 @@ from app.services.auth_dependencies import AuthPrincipal, allow_guest_query_only
 from app.services.query_job_manager import create_query_job, get_query_job
 from app.services.query_queue import enqueue_query_job
 from app.services.rate_limiter import enforce_fixed_window_rate_limit
+from app.services.stream_token_service import create_stream_token, validate_stream_token
 
 
 router = APIRouter()
@@ -95,10 +96,9 @@ async def get_query_job_status(
     return _parse_query_job(job)
 
 
-@router.get("/jobs/{query_job_id}/stream")
-async def stream_query_job(
+@router.post("/jobs/{query_job_id}/stream-token")
+async def create_query_stream_token(
     query_job_id: str,
-    request: Request,
     principal: AuthPrincipal = Depends(allow_guest_query_only),
 ):
     job = await get_query_job(query_job_id)
@@ -106,6 +106,33 @@ async def stream_query_job(
         raise HTTPException(status_code=404, detail="Query job not found")
 
     if job.get("user_id") != principal.user_id and not principal.is_admin:
+        raise HTTPException(status_code=403, detail="You cannot access this query job stream")
+
+    return {
+        "stream_token": create_stream_token(
+            purpose="query",
+            job_id=query_job_id,
+            user_id=job.get("user_id"),
+        )
+    }
+
+
+@router.get("/jobs/{query_job_id}/stream")
+async def stream_query_job(
+    query_job_id: str,
+    request: Request,
+    stream_token: str | None = None,
+):
+    job = await get_query_job(query_job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail="Query job not found")
+
+    token_user_id = validate_stream_token(
+        purpose="query",
+        job_id=query_job_id,
+        token=stream_token,
+    )
+    if not token_user_id or job.get("user_id") != token_user_id:
         raise HTTPException(status_code=403, detail="You cannot access this query job stream")
 
     async def event_generator():

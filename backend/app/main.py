@@ -1,4 +1,5 @@
 import json
+import logging
 import time
 import uuid
 
@@ -10,6 +11,8 @@ from app.api import admin, auth, health, ingest, query
 from app.api.knowledge_base import router as knowledge_base_router
 from app.core.config import AUTO_CREATE_DB_TABLES, FRONTEND_URL
 from app.db.postgres import init_db
+
+logger = logging.getLogger("assessly.api")
 
 app = FastAPI(
     title="Assessly AI",
@@ -31,14 +34,16 @@ async def latency_logging_middleware(request: Request, call_next):
     start = time.perf_counter()
     response = await call_next(request)
     duration_ms = round((time.perf_counter() - start) * 1000, 2)
-    print(json.dumps({
-        "event": "api_request",
-        "trace_id": trace_id,
-        "method": request.method,
-        "path": request.url.path,
-        "status_code": response.status_code,
-        "duration_ms": duration_ms,
-    }))
+    logger.info(
+        json.dumps({
+            "event": "api_request",
+            "trace_id": trace_id,
+            "method": request.method,
+            "path": request.url.path,
+            "status_code": response.status_code,
+            "duration_ms": duration_ms,
+        })
+    )
     response.headers["x-trace-id"] = trace_id
     return response
 
