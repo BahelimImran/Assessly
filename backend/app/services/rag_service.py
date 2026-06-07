@@ -59,7 +59,7 @@ def ingest_pdf(file_path, log, user_id, document_id: str | None = None, document
     #         "chunks": len(existing["ids"])
     #     }
 
-    log(f"✔️ 📄 Parsing document structure...{user_id}")
+    log(f"✔️ 📄 Parsing document structure...")
     
     # # parse pdf
     # elements = parse_pdf(file_path) 
@@ -289,7 +289,7 @@ def ingest_pdf(file_path, log, user_id, document_id: str | None = None, document
             
 
     # qdrant store
-    log(f"✔️ 📦 Storing vectors(parents, childs) in database...{user_id}")
+    log(f"✔️ 📦 Storing vectors(parents, childs) in database...")
     create_collections()
 
     # qdrant.upsert(
@@ -312,7 +312,7 @@ def ingest_pdf(file_path, log, user_id, document_id: str | None = None, document
             points=batch
         )
 
-    log(f"✔️ ✅ Ingestion complete...{user_id}")
+    log(f"✔️ ✅ Ingestion complete for document: {document_id}")
     log(f"✅ All set! You can start asking questions now.")
     return {
         "document_id": document_id,

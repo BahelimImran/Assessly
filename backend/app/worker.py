@@ -132,7 +132,7 @@ while True:
             error="",
             started_at=utc_now(),
         )
-        publish_log(job_id, f"Ingestion started for user {user_id}", 10)
+        publish_log(job_id, f"Ingestion started for document: {document_id}", 10)
 
         result = ingest_pdf(
             file_path=file_path,
