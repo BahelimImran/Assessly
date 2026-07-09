@@ -43,6 +43,8 @@ def create_query_job_sync(
             "updated_at": now,
             "completed_at": "",
             "failed_at": "",
+            "route": "",
+            "route_reason": "",
         },
     )
     redis_client.expire(f"query_job:{job_id}", QUERY_JOB_TTL_SECONDS)

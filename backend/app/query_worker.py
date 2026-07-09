@@ -9,8 +9,15 @@ from app.services.query_job_manager import (
     update_query_job_sync,
 )
 from app.services.query_queue import ack_query_job, dequeue_query_job
-from app.services.rag_service import generate_answer
+from app.services.rag_service import generate_answer, call_llm
 
+from app.services.query_intension_router.hybrid_router import hybrid_router
+from app.services.model_client import post_json_with_retry
+import logging
+from app.core.config import *
+
+
+logger = logging.getLogger("router")
 
 if AUTO_CREATE_DB_TABLES:
     init_db()
@@ -84,6 +91,7 @@ def process_query_job(job: dict):
 
     def progress(status: str, message: str):
         progress_map = {
+            "routing": 15,
             "retrieving": 30,
             "reranking": 55,
             "generating": 75,
@@ -103,7 +111,71 @@ def process_query_job(job: dict):
         )
 
     try:
-        result = generate_answer(question, filters, progress_callback=progress)
+        # 🧠 ROUTING STEP
+        route_info = hybrid_router(question)
+
+        update_query_job_sync(
+            job_id,
+            route=route_info["route"],
+            route_reason=route_info["reason"]
+        )
+
+        publish_query_event(
+            job_id=job_id,
+            user_id=user_id,
+            trace_id=trace_id,
+            status="routing",
+            message=f"Routing → {route_info['route']} ({route_info['reason']})"
+        )
+        # route_info["route"] = "RAG" #fake
+        # 🚀 NO_RAG FLOW
+        if route_info["route"] == "NO_RAG":
+
+            update_query_job_sync(
+                job_id,
+                status="generating",
+                current_step="generating",
+                progress=70
+            )
+
+            publish_query_event(
+                job_id=job_id,
+                user_id=user_id,
+                trace_id=trace_id,
+                status="generating",
+                message="NO_RAG Flow - Generating direct LLM response"
+            )
+
+            result = {
+                "answer": "",
+                "citations": []
+            }
+            result['answer'] = call_llm(question)
+
+        # 📚 RAG FLOW
+        else:
+            
+            update_query_job_sync(
+                job_id,
+                status="generating",
+                current_step="generating",
+                progress=70
+            )
+
+            publish_query_event(
+                job_id=job_id,
+                user_id=user_id,
+                trace_id=trace_id,
+                status="generating",
+                message="RAG Flow - Generating LLM response"
+            )
+
+            result = generate_answer(
+                question,
+                filters,
+                progress_callback=progress
+            )
+
         citations = result.get("citations") or result.get("sources") or []
 
         update_query_job_sync(
@@ -130,6 +202,13 @@ def process_query_job(job: dict):
 
     except Exception as exc:
         fail_query_job(job, str(exc))
+    
+    logger.info({
+    "query": question,
+    "route": route_info["route"],
+    "confidence": route_info.get("confidence"),
+    "reason": route_info["reason"]
+})
 
 
 while True:
