@@ -1,15 +1,14 @@
 import os
 from datetime import datetime
 
+from opentelemetry.propagate import extract
+from opentelemetry.trace import Status, StatusCode
+
 from app.core.config import AUTO_CREATE_DB_TABLES, JOB_TTL_SECONDS, UPLOAD_DIR
+from app.core.tracing import tracer, mark_span_error
 from app.db.qdrant_client import delete_upload_session_points
-from app.db.postgres import init_db #New Postgres Init Import
+from app.db.postgres import init_db
 from app.services.job_queue import ack_job, dequeue_job
-
-# These functions update Postgres durable state.
-
-# Why:
-# Redis is temporary/live progress. Postgres is durable history.
 from app.services.metadata_repository import (
     mark_ingestion_completed,
     mark_ingestion_failed,
@@ -20,11 +19,8 @@ from app.services.pubsub_logger import publish_log
 from app.services.rag_service import ingest_pdf
 from app.services.redis_client import redis_client
 
-# What it does:
-# Auto-creates missing metadata tables when worker starts.
-
-# Why:
-# Development convenience. Since worker runs in Docker, this prevents worker from failing if tables do not exist yet.
+from opentelemetry.instrumentation.redis import RedisInstrumentor
+RedisInstrumentor().instrument()  # auto-traces redis calls made inside the worker too
 
 if AUTO_CREATE_DB_TABLES:
     init_db()
@@ -49,14 +45,12 @@ def increment_retry_count(job_id: str) -> int:
 def resolve_file_path(job: dict) -> str | None:
     file_name = job.get("file_name")
     file_path = job.get("file_path")
-
     if file_name:
         return os.path.join(UPLOAD_DIR, file_name)
-
     return file_path
 
 
-def fail_job(job_id: str, message: str, stream_id: str | None = None):
+def fail_job(job_id: str, message: str, stream_id: str | None = None, span=None):
     update_job(
         job_id,
         status="failed",
@@ -65,13 +59,12 @@ def fail_job(job_id: str, message: str, stream_id: str | None = None):
         error=message,
         failed_at=utc_now(),
     )
-
-# When worker marks Redis job as failed, it also marks Postgres job/document/upload session as failed.
-
-# Why:
-# If Redis expires later, Postgres still knows the job failed and why.
     mark_ingestion_failed(job_id, message)
     publish_log(job_id, f"Ingestion failed: {message}", 0)
+
+    if span:
+        span.set_attribute("job.status", "failed")
+        span.set_status(Status(StatusCode.ERROR, message))
 
     if stream_id:
         ack_job(stream_id)
@@ -81,7 +74,7 @@ while True:
     job = dequeue_job()
     if not job:
         continue
-# These values come from ingest.py queue payload.
+
     stream_id = job.get("stream_id")
     job_id = job.get("job_id")
     user_id = job.get("user_id")
@@ -91,77 +84,102 @@ while True:
     previous_active_upload_session_id = job.get("previous_active_upload_session_id")
     file_path = resolve_file_path(job)
 
-    if not job_id:
-        if stream_id:
-            ack_job(stream_id)
-        continue
+    # Why:
+    # If the producer attached a traceparent, this resumes the SAME trace
+    # that started when the API accepted the upload. If not present
+    # (e.g. old jobs still in the stream from before this change),
+    # extract() just returns an empty context and a fresh trace starts —
+    # nothing breaks either way.
+    # carrier = {"traceparent": job.get("traceparent", "")}
+    # parent_ctx = extract(carrier)
 
-    if not user_id:
-        fail_job(job_id, "Invalid job payload: missing user_id.", stream_id)
-        continue
+    parent_ctx = extract(job.get("trace_context", {}))
 
-    if not file_path:
-        fail_job(job_id, "Invalid job payload: missing file reference.", stream_id)
-        continue
+    with tracer.start_as_current_span("worker.process_job", context=parent_ctx) as span:
+        span.add_event("job_received")
+        span.set_attribute("job.id", job_id or "")
+        span.set_attribute("job.user_id", user_id or "")
+        span.set_attribute("job.document_id", document_id or "")
 
-    if not os.path.exists(file_path):
-        fail_job(job_id, f"Uploaded file not found for worker: {file_path}", stream_id)
-        continue
+        with tracer.start_as_current_span("worker.validate_job"):
+            if not job_id:
+                if stream_id:
+                    ack_job(stream_id)
+                continue
 
-    def log(message, progress=10):
+            if not user_id:
+                fail_job(job_id, "Invalid job payload: missing user_id.", stream_id, span)
+                continue
 
-# SSE logs still go through Redis pub/sub
-# Redis job status still updates
-# Postgres durable job progress also updates
+            if not file_path:
+                fail_job(job_id, "Invalid job payload: missing file reference.", stream_id, span)
+                continue
 
-# Why:
-# Redis gives live UI updates. Postgres keeps durable progress history.       
-       
-        publish_log(job_id, message, progress)
-        update_job(job_id, current_step=message, progress=progress)
-        update_ingestion_progress(job_id, message, progress)
+            if not os.path.exists(file_path):
+                fail_job(job_id, f"Uploaded file not found for worker: {file_path}", stream_id, span)
+                continue
 
-    try:
-        retry_count = increment_retry_count(job_id)
-        mark_ingestion_started(job_id, retry_count)
-        update_job(
-            job_id,
-            status="processing",
-            progress=10,
-            current_step="processing",
-            error="",
-            started_at=utc_now(),
-        )
-        publish_log(job_id, f"Ingestion started for document: {document_id}", 10)
+        def log(message, progress=10):
+            publish_log(job_id, message, progress)
+            update_job(job_id, current_step=message, progress=progress)
+            update_ingestion_progress(job_id, message, progress)
 
-        result = ingest_pdf(
-            file_path=file_path,
-            log=log,
-            user_id=user_id,
-            document_id=document_id,
-            document_hash=document_hash,
-            upload_session_id=upload_session_id,
-        )
+        try:
+            
+            retry_count = increment_retry_count(job_id)
+            span.set_attribute("job.retry_count", retry_count)
+            mark_ingestion_started(job_id, retry_count)
+            update_job(
+                job_id,
+                status="processing",
+                progress=10,
+                current_step="processing",
+                error="",
+                started_at=utc_now(),
+            )
+            publish_log(job_id, f"Ingestion started for document: {document_id}", 10)
 
-        update_job(
-            job_id,
-            status="completed",
-            progress=100,
-            current_step="completed",
-            completed_at=utc_now(),
-            error="",
-            retry_count=retry_count,
-        )
-        mark_ingestion_completed(job_id, int(result.get("chunks", 0)))
+            with tracer.start_as_current_span("worker.ingest_pdf") as ingest_span:
+                ingest_span.set_attribute("document.id", document_id or "")
+                ingest_span.set_attribute("file.path", file_path or "")
+                span.add_event("job_started")
+                
+                result = ingest_pdf(
+                    file_path=file_path,
+                    log=log,
+                    user_id=user_id,
+                    document_id=document_id,
+                    document_hash=document_hash,
+                    upload_session_id=upload_session_id,
+                )
+                
+                ingest_span.set_attribute("chunks_created", int(result.get("chunks", 0)))
+                span.add_event("job_completed")
+            update_job(
+                job_id,
+                status="completed",
+                progress=100,
+                current_step="completed",
+                completed_at=utc_now(),
+                error="",
+                retry_count=retry_count,
+            )
+            mark_ingestion_completed(job_id, int(result.get("chunks", 0)))
+            span.set_attribute("job.status", "completed")
 
-        if previous_active_upload_session_id:
-            deleted = delete_upload_session_points(previous_active_upload_session_id, user_id)
-            publish_log(job_id, f"Cleaned previous document version: {deleted} and updated fresh information", 100)
+            if previous_active_upload_session_id:
+                with tracer.start_as_current_span("worker.cleanup_previous_version") as cleanup_span:
+                    cleanup_span.set_attribute(
+                        "previous_upload_session_id",
+                        previous_active_upload_session_id
+                    )
+                    deleted = delete_upload_session_points(previous_active_upload_session_id, user_id)
+                    publish_log(job_id, f"Cleaned previous document version: {deleted} and updated fresh information", 100)
 
-        # publish_log(job_id, "Ingestion completed", 100)
+            if stream_id:
+                ack_job(stream_id)
 
-        if stream_id:
-            ack_job(stream_id)
-
-    except Exception as e:
-        fail_job(job_id, str(e), stream_id)
+        except Exception as e:
+            mark_span_error(span, e)
+            fail_job(job_id, str(e), stream_id, span)
+            span.add_event("job_failed", {"error": str(e)})

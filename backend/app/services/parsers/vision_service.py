@@ -6,6 +6,8 @@ from typing import List, Dict, Any
 from app.core.config import OLLAMA_BASE_URL, VISION_MODEL, VISION_REQUEST_TIMEOUT_SECONDS
 from app.services.model_client import post_json_with_retry
 
+from app.core.langfuse import get_langfuse, get_trace_context
+
 logger = logging.getLogger(__name__)
 
 # OLLAMA_BASE_URL = "http://localhost:11434"
@@ -108,6 +110,19 @@ def summarize_image_with_vision_model(image_path: str) -> str:
 
                 Do not hallucinate. If unclear, say what is unclear.
                 """
+        
+        # Langfuse start
+        langfuse = get_langfuse()
+        trace_ctx = get_trace_context()
+
+        generation = langfuse.generation(
+            name="vision_model_call",
+            input=prompt,
+            metadata={
+                "otel_trace_id": trace_ctx["trace_id"]
+            }
+        )
+        # Langfuse end
 
         data = post_json_with_retry(
             f"{OLLAMA_BASE_URL}/api/generate",
@@ -124,7 +139,12 @@ def summarize_image_with_vision_model(image_path: str) -> str:
             timeout=VISION_REQUEST_TIMEOUT_SECONDS,
             request_name="ollama_vision_summary"
         )
-
+        # Langfuse start
+        generation.end(
+            output=data.get("response", "").strip()
+        )
+        # Langfuse end
+        
         return data.get("response", "").strip()
 
     except Exception as e:

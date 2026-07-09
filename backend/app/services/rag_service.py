@@ -29,301 +29,313 @@ from app.services.model_client import ModelCallError, ModelCallTimeout, post_jso
 from app.services.measure_confidence.calculate_confidence import *
 import uuid
 
+from app.core.tracing import tracer
+
 logger = logging.getLogger(__name__)
 
 
 # ---------------- INGEST ----------------
 def ingest_pdf(file_path, log, user_id, document_id: str | None = None, document_hash: str | None = None, upload_session_id: str | None = None):
-    logger.info("Ingesting document", extra={"document_id": document_id, "user_id": user_id})
+    with tracer.start_as_current_span("rag.ingest_pdf") as span:
 
-    source_file = os.path.basename(file_path)
-    document_hash = document_hash or hash_file_bytes(file_path)
-    document_id = document_id or document_hash
-    created_at = datetime.now(timezone.utc).isoformat()
+        logger.info("Ingesting document", extra={"document_id": document_id, "user_id": user_id})
 
-    upload_session_id = upload_session_id or str(uuid.uuid4())
-    user_id = user_id
+        source_file = os.path.basename(file_path)
+        document_hash = document_hash or hash_file_bytes(file_path)
+        document_id = document_id or document_hash
+        created_at = datetime.now(timezone.utc).isoformat()
 
-
-    # existing = collection.get(
-    #     where={"document_id":document_id},
-    #     include=["metadatas"]
-    # )
-
-    # if existing.get("ids"):
-    #     return {
-    #         "status": "duplicate",
-    #         "message": "This document already exists in knowledge base.",
-    #         "document_id": document_id,
-    #         "source_file": os.path.basename(file_path),
-    #         "chunks": len(existing["ids"])
-    #     }
-
-    log(f"✔️ 📄 Parsing document structure...")
-    
-    # # parse pdf
-    # elements = parse_pdf(file_path) 
-
-    # all_chunks = process_document(elements, file_path)
-
-    all_chunks = parse_document(file_path, log)
-
-    # final_docs = []
-    # final_metas = []
-    # ids = []
+        upload_session_id = upload_session_id or str(uuid.uuid4())
+        user_id = user_id
 
 
+        # existing = collection.get(
+        #     where={"document_id":document_id},
+        #     include=["metadatas"]
+        # )
 
+        # if existing.get("ids"):
+        #     return {
+        #         "status": "duplicate",
+        #         "message": "This document already exists in knowledge base.",
+        #         "document_id": document_id,
+        #         "source_file": os.path.basename(file_path),
+        #         "chunks": len(existing["ids"])
+        #     }
 
-    # for index, chunk in enumerate(all_chunks["chunks"]): # Todo
-    #     # 'searchable_content' is only available for child and not for parent
-    #     content = chunk.get("content", "").strip()
-
-    #     if not content:
-    #         continue
+        log(f"✔️ 📄 Parsing document structure...")
         
-    #     chunk_hash = hash_text(content)
-    #     chunk_id = f"{document_id}_{chunk_hash}" # Note- no use yet
+        # # parse pdf
+        # elements = parse_pdf(file_path) 
 
-    #     metadata = {
+        # all_chunks = process_document(elements, file_path)
+        # 1. Parse PDF
+        with tracer.start_as_current_span("rag.parse_pdf"):
 
-    #             # Identity
-    #             "document_id": document_id,
-    #             "file_name": source_file,
-    #             "source_file": source_file,
-    #             "upload_session_id": upload_session_id,
-    #             "user_id": user_id,
+            all_chunks = parse_document(file_path, log)
 
-    #             # Location
-    #             "page": chunk.get("page_number", chunk.get("page", "")), # Todo - add
-    #             "page_number": chunk.get("page_number", chunk.get("page", "")), # Todo - add
+        # final_docs = []
+        # final_metas = []
+        # ids = []
 
-    #             # Section
-    #             "section": chunk.get("section_title", chunk.get("title", "")),
-    #             "section_title": chunk.get("section_title", chunk.get("title", "")),
-    #             "section_path": chunk.get("section_path", ""), # important to show - Finance Approval Matrix > 3. Approval Limits > 3.2 Department Head Approval
 
-    #             # Chunk
-    #             "chunk_type": chunk.get("chunk_type", "text"), # Note- parant-section and child-text allocated by docling
-    #             "chunk_index": index,
-    #             "chunk_hash": chunk_hash,
 
-    #             # Useful extras
-    #             "total_pages": chunk.get("total_pages", ""), #Note - chunk don't have
-    #             "heading_level": chunk.get("heading_level", ""),#Note - chunk don't have
-    #             "content_preview": content[:180],
-    #             "word_count": len(content.split()),
-    #             "char_count": len(content),
-    #             "source_type": "pdf",
-    #             "parser": chunk.get("parser", "docling"),
-    #             "image_path": chunk.get("image_path", ""),
-    #             "created_at": created_at,
-    #     }
-    #     final_docs.append(content)
-    #     final_metas.append(clean_metadata(metadata))
-    #     ids.append(chunk_id)
-    
-    
-    # embeddings = []
-    # log("✔️ 📄 Parsing document structure...")
-    # log("✔️ 🧠 Generating embeddings...")
-    # log("✔️ 📦 Storing in vector database...")
-    # print("\n\n\n\n\n 🧠 Generating embeddings...")
-    # print(f"\n ⚙️  [Embedding model: bge-m3]")
-    # for text in final_docs:
-    #     emb = get_embedding(text)
 
-    #     if not emb:
-    #         raise Exception("Embedding generation failed. Empty embedding returned")
-        
-    #     embeddings.append(emb)
-        
-    # log("✔️ 📦 Storing in vector database...")
-    # print("\n\n\n\n\n 📦 Storing in vector database...")
-    # print(f"\n ⚙️  [Qdrantdb updated]")	
-    # # Store in Chroma
-    # # ids = [f"{file_path}_{i}" for i in range(len(final_docs))]
+        # for index, chunk in enumerate(all_chunks["chunks"]): # Todo
+        #     # 'searchable_content' is only available for child and not for parent
+        #     content = chunk.get("content", "").strip()
 
-    # points = []
-
-    # for doc, embedding, metadata, custom_chunk_id in zip(final_docs, embeddings, final_metas, ids):
-    #     points.append(
-    #         PointStruct(
-    #             id=str(uuid.uuid4()),
-    #             vector=embedding,
-    #             payload={
-    #                 "content": doc,
-    #                 "chunk_id": custom_chunk_id, 
-    #                 **metadata
-    #             }
-    #         )
-    #     )
-
-    # if final_docs:
-    #     qdrant.upsert(
-    #         collection_name = QDRANT_COLLECTION,
-    #         points=points
-    #     )
-
-    # parents qdrant points
-    parents_points = []
-
-    for parent in all_chunks["parent_chunks"]:
-
-        parent_id = parent.get("parent_id", str(uuid.uuid4()))
-        parent["parent_id"] = parent_id
-
-        parent_title = parent.get("title", "")
-        parent_content = "\n\n".join(parent.get("content", []))
-
-        full_parent_text = f"{parent_title}\n\n{parent_content}"
-
-        parents_points.append(
-            PointStruct(
-                id=parent_id,
-                vector={},
-                payload={
-                    "parent_id": parent_id,
-                    "document_id": document_id,
-                    "document_hash": document_hash,
-                    "user_id": user_id,
-                    "upload_session_id": upload_session_id,
-                    "source_file":source_file,
-                    "section_title": parent_title,
-                    "full_text": full_parent_text,
-                    "content": parent.get("content", []),
-                    "content_type": "parent_section"
-                }
-            )
-        )
-
-    
-    # # childs qdrant points
-    # childs_points = []
-
-    # # Embedding in-progress
-    # log("✔️ 🧠 Generating dense(semantics) and parse(keywords) embeddings...")
-    # for child in all_chunks["child_chunks"]:
-
-    #     child_id = child.get("child_id") or str(uuid.uuid4())
-    #     child["child_id"] = child_id
-
-    #     text_for_embedding = child.get("chunk_text", "")
-    #     embedding = get_embedding(text_for_embedding) # Todo-later change with batch embedding - Huge speed improvement
-    #     sparse_embedding = list(sparse_model.embed([text_for_embedding]))[0]
-
-    #     childs_points.append(
-    #         PointStruct(
-    #             id=child_id,
-    #             # vector=embedding,
-    #             vector={
-    #                 "dense": embedding,
-    #                 "sparse": {
-    #                     "indices": sparse_embedding.indices.tolist(),
-    #                     "values": sparse_embedding.values.tolist()
-    #                 }
-    #             },
-    #             payload={
-    #                 "user_id": user_id or "default_user",
-    #                 "child_id": child_id,
-    #                 "parent_id": child.get("parent_id"),
-    #                 "document_id": document_id,
-    #                 "section_title": child.get("section_title", ""),
-    #                 "chunk_text": text_for_embedding,
-    #                 "chunk_type": child.get("chunk_type", "paragraph"),
-    #                 "content_type": "child_chunk"
-    #             }
-    #         )
-    #     )
-    
-    child_chunks = [
-        child for child in all_chunks["child_chunks"]
-        if child.get("chunk_text", "").strip()
-    ]
-
-    texts = [child["chunk_text"] for child in child_chunks]
-
-    log(f"✔️ 🧠 Generating batch embeddings for {len(texts)} child chunks...")
-
-    dense_embeddings = get_embeddings_batch(texts)
-
-    sparse_embeddings = list(get_sparse_model().embed(texts))
-
-    childs_points = []
-
-    for child, dense_embedding, sparse_embedding in zip(
-        child_chunks,
-        dense_embeddings,
-        sparse_embeddings
-    ):
-        child_id = child.get("child_id") or str(uuid.uuid4())
-        child["child_id"] = child_id
-
-        text_for_embedding = child.get("chunk_text", "")
-
-        childs_points.append(
-            PointStruct(
-                id=child_id,
-                vector={
-                    "dense": dense_embedding,
-                    "sparse": {
-                        "indices": sparse_embedding.indices.tolist(),
-                        "values": sparse_embedding.values.tolist()
-                    }
-                },
-                payload={
-                    "user_id": user_id,
-                    "child_id": child_id,
-                    "parent_id": child.get("parent_id"),
-                    "document_id": document_id,
-                    "document_hash": document_hash,
-                    "upload_session_id": upload_session_id,
-                    "source_file":source_file,
-                    "section_title": child.get("section_title", ""),
-                    "chunk_text": text_for_embedding,
-                    "chunk_type": child.get("chunk_type", "paragraph"),
-                    "content_type": "child_chunk"
-                }
-            )
-        )
+        #     if not content:
+        #         continue
             
+        #     chunk_hash = hash_text(content)
+        #     chunk_id = f"{document_id}_{chunk_hash}" # Note- no use yet
 
-    # qdrant store
-    log(f"✔️ 📦 Storing vectors(parents, childs) in database...")
-    create_collections()
+        #     metadata = {
 
-    # qdrant.upsert(
-    #     collection_name=PARENT_COLLECTION,
-    #     points=parents_points
-    # )
-    for batch in batched(parents_points, batch_size=64):
-        qdrant.upsert(
-            collection_name=PARENT_COLLECTION,
-            points=batch
-        )    
+        #             # Identity
+        #             "document_id": document_id,
+        #             "file_name": source_file,
+        #             "source_file": source_file,
+        #             "upload_session_id": upload_session_id,
+        #             "user_id": user_id,
 
-    # qdrant.upsert(
-    #     collection_name=CHILD_COLLECTION,
-    #     points=childs_points
-    # )
-    for batch in batched(childs_points, batch_size=64):
-        qdrant.upsert(
-            collection_name=CHILD_COLLECTION,
-            points=batch
-        )
+        #             # Location
+        #             "page": chunk.get("page_number", chunk.get("page", "")), # Todo - add
+        #             "page_number": chunk.get("page_number", chunk.get("page", "")), # Todo - add
 
-    log(f"✔️ ✅ Ingestion complete for document: {document_id}")
-    log(f"✅ All set! You can start asking questions now.")
-    return {
-        "document_id": document_id,
-        "document_hash": document_hash,
-        "file_name": source_file,
-        "source_file": source_file,
-        "upload_session_id": upload_session_id,
-        "user_id": user_id,
-        "chunks": len(childs_points),
-        "replaced_existing_chunks": {}
-    }
+        #             # Section
+        #             "section": chunk.get("section_title", chunk.get("title", "")),
+        #             "section_title": chunk.get("section_title", chunk.get("title", "")),
+        #             "section_path": chunk.get("section_path", ""), # important to show - Finance Approval Matrix > 3. Approval Limits > 3.2 Department Head Approval
+
+        #             # Chunk
+        #             "chunk_type": chunk.get("chunk_type", "text"), # Note- parant-section and child-text allocated by docling
+        #             "chunk_index": index,
+        #             "chunk_hash": chunk_hash,
+
+        #             # Useful extras
+        #             "total_pages": chunk.get("total_pages", ""), #Note - chunk don't have
+        #             "heading_level": chunk.get("heading_level", ""),#Note - chunk don't have
+        #             "content_preview": content[:180],
+        #             "word_count": len(content.split()),
+        #             "char_count": len(content),
+        #             "source_type": "pdf",
+        #             "parser": chunk.get("parser", "docling"),
+        #             "image_path": chunk.get("image_path", ""),
+        #             "created_at": created_at,
+        #     }
+        #     final_docs.append(content)
+        #     final_metas.append(clean_metadata(metadata))
+        #     ids.append(chunk_id)
+        
+        
+        # embeddings = []
+        # log("✔️ 📄 Parsing document structure...")
+        # log("✔️ 🧠 Generating embeddings...")
+        # log("✔️ 📦 Storing in vector database...")
+        # print("\n\n\n\n\n 🧠 Generating embeddings...")
+        # print(f"\n ⚙️  [Embedding model: bge-m3]")
+        # for text in final_docs:
+        #     emb = get_embedding(text)
+
+        #     if not emb:
+        #         raise Exception("Embedding generation failed. Empty embedding returned")
+            
+        #     embeddings.append(emb)
+            
+        # log("✔️ 📦 Storing in vector database...")
+        # print("\n\n\n\n\n 📦 Storing in vector database...")
+        # print(f"\n ⚙️  [Qdrantdb updated]")	
+        # # Store in Chroma
+        # # ids = [f"{file_path}_{i}" for i in range(len(final_docs))]
+
+        # points = []
+
+        # for doc, embedding, metadata, custom_chunk_id in zip(final_docs, embeddings, final_metas, ids):
+        #     points.append(
+        #         PointStruct(
+        #             id=str(uuid.uuid4()),
+        #             vector=embedding,
+        #             payload={
+        #                 "content": doc,
+        #                 "chunk_id": custom_chunk_id, 
+        #                 **metadata
+        #             }
+        #         )
+        #     )
+
+        # if final_docs:
+        #     qdrant.upsert(
+        #         collection_name = QDRANT_COLLECTION,
+        #         points=points
+        #     )
+
+        # parents qdrant points
+        # 2. Chunking
+        with tracer.start_as_current_span("rag.chunking") as chunk_span:  
+            parents_points = []
+
+            for parent in all_chunks["parent_chunks"]:
+
+                parent_id = parent.get("parent_id", str(uuid.uuid4()))
+                parent["parent_id"] = parent_id
+
+                parent_title = parent.get("title", "")
+                parent_content = "\n\n".join(parent.get("content", []))
+
+                full_parent_text = f"{parent_title}\n\n{parent_content}"
+
+                parents_points.append(
+                    PointStruct(
+                        id=parent_id,
+                        vector={},
+                        payload={
+                            "parent_id": parent_id,
+                            "document_id": document_id,
+                            "document_hash": document_hash,
+                            "user_id": user_id,
+                            "upload_session_id": upload_session_id,
+                            "source_file":source_file,
+                            "section_title": parent_title,
+                            "full_text": full_parent_text,
+                            "content": parent.get("content", []),
+                            "content_type": "parent_section"
+                        }
+                    )
+                )
+
+            
+            # # childs qdrant points
+            # childs_points = []
+
+            # # Embedding in-progress
+            # log("✔️ 🧠 Generating dense(semantics) and parse(keywords) embeddings...")
+            # for child in all_chunks["child_chunks"]:
+
+            #     child_id = child.get("child_id") or str(uuid.uuid4())
+            #     child["child_id"] = child_id
+
+            #     text_for_embedding = child.get("chunk_text", "")
+            #     embedding = get_embedding(text_for_embedding) # Todo-later change with batch embedding - Huge speed improvement
+            #     sparse_embedding = list(sparse_model.embed([text_for_embedding]))[0]
+
+            #     childs_points.append(
+            #         PointStruct(
+            #             id=child_id,
+            #             # vector=embedding,
+            #             vector={
+            #                 "dense": embedding,
+            #                 "sparse": {
+            #                     "indices": sparse_embedding.indices.tolist(),
+            #                     "values": sparse_embedding.values.tolist()
+            #                 }
+            #             },
+            #             payload={
+            #                 "user_id": user_id or "default_user",
+            #                 "child_id": child_id,
+            #                 "parent_id": child.get("parent_id"),
+            #                 "document_id": document_id,
+            #                 "section_title": child.get("section_title", ""),
+            #                 "chunk_text": text_for_embedding,
+            #                 "chunk_type": child.get("chunk_type", "paragraph"),
+            #                 "content_type": "child_chunk"
+            #             }
+            #         )
+            #     )
+            
+            child_chunks = [
+                child for child in all_chunks["child_chunks"]
+                if child.get("chunk_text", "").strip()
+            ]
+
+            texts = [child["chunk_text"] for child in child_chunks]
+            chunk_span.set_attribute("chunks.count", len(child_chunks))
+
+        # 3. Embeddings
+        with tracer.start_as_current_span("rag.embedding"):
+            log(f"✔️ 🧠 Generating batch embeddings for {len(texts)} child chunks...")
+
+            dense_embeddings = get_embeddings_batch(texts)
+
+            sparse_embeddings = list(get_sparse_model().embed(texts))
+
+            childs_points = []
+
+            for child, dense_embedding, sparse_embedding in zip(
+                child_chunks,
+                dense_embeddings,
+                sparse_embeddings
+            ):
+                child_id = child.get("child_id") or str(uuid.uuid4())
+                child["child_id"] = child_id
+
+                text_for_embedding = child.get("chunk_text", "")
+
+                childs_points.append(
+                    PointStruct(
+                        id=child_id,
+                        vector={
+                            "dense": dense_embedding,
+                            "sparse": {
+                                "indices": sparse_embedding.indices.tolist(),
+                                "values": sparse_embedding.values.tolist()
+                            }
+                        },
+                        payload={
+                            "user_id": user_id,
+                            "child_id": child_id,
+                            "parent_id": child.get("parent_id"),
+                            "document_id": document_id,
+                            "document_hash": document_hash,
+                            "upload_session_id": upload_session_id,
+                            "source_file":source_file,
+                            "section_title": child.get("section_title", ""),
+                            "chunk_text": text_for_embedding,
+                            "chunk_type": child.get("chunk_type", "paragraph"),
+                            "content_type": "child_chunk"
+                        }
+                    )
+                )
+                    
+        # 4. Vector DB insert
+        with tracer.start_as_current_span("rag.vector_store"):
+        # qdrant store
+            log(f"✔️ 📦 Storing vectors(parents, childs) in database...")
+            create_collections()
+
+            # qdrant.upsert(
+            #     collection_name=PARENT_COLLECTION,
+            #     points=parents_points
+            # )
+            for batch in batched(parents_points, batch_size=64):
+                qdrant.upsert(
+                    collection_name=PARENT_COLLECTION,
+                    points=batch
+                )    
+
+            # qdrant.upsert(
+            #     collection_name=CHILD_COLLECTION,
+            #     points=childs_points
+            # )
+            for batch in batched(childs_points, batch_size=64):
+                qdrant.upsert(
+                    collection_name=CHILD_COLLECTION,
+                    points=batch
+                )
+
+        log(f"✔️ ✅ Ingestion complete for document: {document_id}")
+        log(f"✅ All set! You can start asking questions now.")
+        return {
+            "document_id": document_id,
+            "document_hash": document_hash,
+            "file_name": source_file,
+            "source_file": source_file,
+            "upload_session_id": upload_session_id,
+            "user_id": user_id,
+            "chunks": len(childs_points),
+            "replaced_existing_chunks": {}
+        }
 
 def batched(items, batch_size=64):
     for i in range(0, len(items), batch_size):

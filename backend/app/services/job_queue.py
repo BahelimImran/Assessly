@@ -3,9 +3,14 @@ import socket
 import uuid
 
 from redis.exceptions import ResponseError
+from opentelemetry.propagate import inject
 
 from app.core.config import JOB_STREAM_BLOCK_MS, JOB_STREAM_RECLAIM_IDLE_MS
+from app.core.tracing import tracer
 from app.services.redis_client import redis_client
+from opentelemetry import context
+
+from app.core.langfuse import get_langfuse, get_trace_context
 
 JOB_STREAM = "ingestion_jobs"
 JOB_GROUP = "ingestion_workers"
@@ -27,14 +32,35 @@ def ensure_consumer_group():
 
 def enqueue_job(payload: dict):
     ensure_consumer_group()
-    return redis_client.xadd(
-        JOB_STREAM,
-        {
-            "job_id": payload["job_id"],
-            "user_id": payload["user_id"],
-            "payload": json.dumps(payload),
-        },
-    )
+
+    with tracer.start_as_current_span("queue.enqueue_job") as span:
+        span.set_attribute("job.id", payload.get("job_id", ""))
+        span.set_attribute("job.user_id", payload.get("user_id", ""))
+        span.set_attribute("queue.name", JOB_STREAM)
+
+        carrier = {}
+        inject(carrier, context=context.get_current())  # ✅ explicit context
+        payload["trace_context"] = carrier
+
+        span.add_event("inject_trace_context")
+
+        trace_ctx = get_trace_context() # langfuse
+        payload["trace_id"] = trace_ctx["trace_id"]
+        payload["span_id"] = trace_ctx["span_id"]
+
+        stream_id = redis_client.xadd(
+            JOB_STREAM,
+            {
+                "job_id": payload["job_id"],
+                "user_id": payload["user_id"],
+                "payload": json.dumps(payload),
+            },
+        )
+
+        span.set_attribute("job.stream_id", str(stream_id))
+        span.add_event("job_enqueued")
+
+        return stream_id
 
 
 def _decode_stream_message(stream_id, fields: dict) -> dict:
@@ -79,9 +105,43 @@ def dequeue_job() -> dict | None:
     if not response:
         return None
 
-    _, messages = response[0]
-    stream_id, fields = messages[0]
-    return _decode_stream_message(stream_id, fields)
+    lf_trace = None  # ✅ FIX: define early
+
+    try:
+        # ✅ Extract message properly
+        stream_name, messages = response[0]
+        stream_id, fields = messages[0]
+
+        decoded = _decode_stream_message(stream_id, fields)
+
+        trace_id = decoded.get("trace_id")  # ✅ correct place
+
+        # ✅ Langfuse tracing
+        langfuse = get_langfuse()
+        lf_trace = langfuse.trace(
+            id=trace_id,
+            name="ingestion_worker",
+            input=decoded
+        )
+
+        # 👉 your ingestion logic here
+        # process_job(decoded)
+
+        lf_trace.update(
+            output={"status": "success"}
+        )
+
+        # lf_trace.flush()
+
+        return decoded
+
+    except Exception as e:
+        if lf_trace:  # ✅ FIX: guard check
+            lf_trace.update(
+                level="ERROR",
+                status_message=str(e)
+            )
+        raise
 
 
 def ack_job(stream_id: str):
