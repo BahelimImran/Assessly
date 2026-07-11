@@ -69,7 +69,7 @@ def post_json_with_retry(
 ) -> dict[str, Any]:
     last_error: Exception | None = None
 
-    for attempt in range(1, MODEL_REQUEST_RETRIES + 2):
+    for attempt in range(1, int(MODEL_REQUEST_RETRIES) + 2):
         try:
             with llm_concurrency_slot(request_name):
                 response = requests.post(url, json=payload, timeout=timeout)

@@ -16,6 +16,8 @@ from app.services.model_client import post_json_with_retry
 import logging
 from app.core.config import *
 
+from app.services.answer_verification.verify_agent import verify_answer
+
 
 logger = logging.getLogger("router")
 
@@ -89,6 +91,50 @@ def process_query_job(job: dict):
         message="Query processing started",
     )
 
+    result, route_info = generate_answer_basedon_query_intension(job, filters, job_id, user_id, trace_id, question)
+    if result is None:
+     result = {}
+
+    if route_info is None:
+        route_info = {}
+
+    if result and route_info :
+        citations = result.get("citations") or result.get("sources") or []
+    else :
+        citations = []
+
+    update_query_job_sync(
+        job_id,
+        status="completed",
+        current_step="completed",
+        progress=100,
+        answer=result.get("answer", "") if result else None,
+        citations=citations,
+        completed_at=utc_now(),
+        error="",
+    )
+    publish_query_event(
+        job_id=job_id,
+        user_id=user_id,
+        trace_id=trace_id,
+        status="completed",
+        message="Query completed",
+    )
+
+    stream_id = job.get("stream_id")
+    if stream_id:
+        ack_query_job(stream_id)
+
+    logger.info({
+    "query": question,
+    "route": route_info["route"] if route_info else None,
+    "confidence": route_info.get("confidence") if route_info else None,
+    "reason": route_info["reason"] if route_info else None
+    })
+    
+
+def generate_answer_basedon_query_intension(job:dict, filters:dict, job_id: str, user_id: str, trace_id: str, question: str):
+    
     def progress(status: str, message: str):
         progress_map = {
             "routing": 15,
@@ -109,7 +155,6 @@ def process_query_job(job: dict):
             status=status,
             message=message,
         )
-
     try:
         # 🧠 ROUTING STEP
         route_info = hybrid_router(question)
@@ -127,8 +172,8 @@ def process_query_job(job: dict):
             status="routing",
             message=f"Routing → {route_info['route']} ({route_info['reason']})"
         )
-        # route_info["route"] = "RAG" #fake
-        # 🚀 NO_RAG FLOW
+
+        # NO_RAG FLOW
         if route_info["route"] == "NO_RAG":
 
             update_query_job_sync(
@@ -146,13 +191,15 @@ def process_query_job(job: dict):
                 message="NO_RAG Flow - Generating direct LLM response"
             )
 
-            result = {
-                "answer": "",
-                "citations": []
-            }
-            result['answer'] = call_llm(question)
+            # result = {
+            #     "answer": "",
+            #     "citations": []
+            # }
+            # result['answer'] = call_llm(question)
 
-        # 📚 RAG FLOW
+            result = generate_answer( question, None, progress_callback=progress )
+
+        # RAG FLOW
         else:
             
             update_query_job_sync(
@@ -176,40 +223,13 @@ def process_query_job(job: dict):
                 progress_callback=progress
             )
 
-        citations = result.get("citations") or result.get("sources") or []
-
-        update_query_job_sync(
-            job_id,
-            status="completed",
-            current_step="completed",
-            progress=100,
-            answer=result.get("answer", ""),
-            citations=citations,
-            completed_at=utc_now(),
-            error="",
-        )
-        publish_query_event(
-            job_id=job_id,
-            user_id=user_id,
-            trace_id=trace_id,
-            status="completed",
-            message="Query completed",
-        )
-
-        stream_id = job.get("stream_id")
-        if stream_id:
-            ack_query_job(stream_id)
+        return result, route_info
+        
 
     except Exception as exc:
         fail_query_job(job, str(exc))
+        return None, None 
     
-    logger.info({
-    "query": question,
-    "route": route_info["route"],
-    "confidence": route_info.get("confidence"),
-    "reason": route_info["reason"]
-})
-
 
 while True:
     query_job = dequeue_query_job()

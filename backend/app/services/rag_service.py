@@ -30,6 +30,7 @@ from app.services.measure_confidence.calculate_confidence import *
 import uuid
 
 from app.core.tracing import tracer
+from app.services.answer_verification.verify_agent import verify_answer
 
 logger = logging.getLogger(__name__)
 
@@ -730,9 +731,15 @@ ANSWER:
 # 6. If answer is not present, reply exactly: "Not found in document."
 
 # ---------------- LLM ----------------
-def call_llm(prompt: str):
+def call_llm(prompt: str, feedback: str = ''):
     try:
         logger.info("LLM inference started", extra={"prompt_length": len(prompt)})
+        if feedback != '':
+            prompt += f"""
+            Previous answer had issues:
+            {feedback}
+            Fix the issues and improve the answer.
+            """
         final_prompt = "/no_think\n\n" + prompt
         data = post_json_with_retry(
             f"{OLLAMA_BASE_URL}/api/generate",
@@ -740,6 +747,7 @@ def call_llm(prompt: str):
                 "model": LLM_MODEL,
                 "prompt": final_prompt,
                 "stream": False,
+                "keep_alive":'5m' ,
                 "options": {
                     "temperature": 0.0,
                     "num_ctx": 8096,
@@ -859,30 +867,35 @@ def validate_grounding(answer, chunks, confidence):
 
 
 def generate_answer(question: str, filters: dict | None = None, progress_callback=None):
-    logger.info("Generating answer")
+    # logger.info("Generating answer")
 
-    if progress_callback:
-        progress_callback("retrieving", "Retrieving documents")
+    if filters:
 
-    chunks = query_rag(question, filters)
+        if progress_callback:
+            progress_callback("retrieving", "Retrieving documents")
 
-    if not chunks:
-        return {
-            "answer": "Not found in document.",
-            "citations": [],
-            "source_chunks": [],
-            "confidence": 0.0,
-            "is_grounded": False,
-            "not_found": True,
-            "validation_notes": [
-                "No relevant chunks were retrieved from the knowledge base."
-            ]
-        }
+        chunks = query_rag(question, filters)
 
-    if progress_callback:
-        progress_callback("reranking", "Reranking chunks")
+        if not chunks:
+            return {
+                "answer": "Not found in document.",
+                "citations": [],
+                "source_chunks": [],
+                "confidence": 0.0,
+                "is_grounded": False,
+                "not_found": True,
+                "validation_notes": [
+                    "No relevant chunks were retrieved from the knowledge base."
+                ]
+            }
+        context = build_context(chunks)
+        
 
-    confidence = calculate_confidence(chunks)
+    # if progress_callback:
+    #     progress_callback("reranking", "Reranking chunks")
+
+    # confidence = calculate_confidence(chunks)
+    
     # Confidence should mostly be shown to the user, not used as the only decision-maker.
     # if confidence < 0.35:
     #     return {
@@ -896,23 +909,44 @@ def generate_answer(question: str, filters: dict | None = None, progress_callbac
     #             "Retrieved chunks were too weak to answer safely."
     #         ]
     #     }
-    if not chunks:
-     return "Not found in document."
 
-    logger.info("Prompt constructed; sending to LLM")
+
+    # logger.info("Prompt constructed; sending to LLM")
 
     if progress_callback:
-        progress_callback("generating", "Generating answer")
+        progress_callback("generating", "Generating answer...")
 
-    context = build_context(chunks)
+    
+    if not filters:
+        context = 'Direct answer'
+
+    verification = {"passed": False}
+    feedback = None
+    
     prompt = create_prompt(question, context)
-    answer = call_llm(prompt)
+    answer = call_llm(prompt, feedback)
 
-    is_grounded = validate_grounding(answer, chunks, confidence)
+    if progress_callback:
+        progress_callback("Answer recieved", "Answer Recieved")
+    
+    for attempt in range(int(MAX_RETRIES) + 1):
+
+        if progress_callback:
+            progress_callback("Answer verification", "Answer verification in progress...")
+        verification = verify_answer(answer, context, question)
+
+        if verification.get("passed"):
+            answer = answer + '\n ✔️ Answer Verified'
+            break
+
+        # failed → prepare retry
+        if progress_callback:
+            progress_callback("verification failed- trying again ", "Wait...Retrieving Again")
+        feedback = verification.get("reason", "Improve answer")
 
     return {
         "answer": answer,
-        # "citations": build_citations(chunks),
+        "citations": build_citations(chunks) if filters else None,
         # "source_chunks": chunks,
         # "confidence": confidence,
         # "is_grounded": is_grounded,

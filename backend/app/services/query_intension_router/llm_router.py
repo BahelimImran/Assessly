@@ -27,12 +27,13 @@ def llm_router(query: str):
         """
     try:
         logger.info("Query intension find LLM inference started", extra={"prompt_length": len(prompt)})
-        final_prompt = "/no_think\n\n" + prompt
+        final_prompt = "" + prompt
         data = post_json_with_retry(
             f"{OLLAMA_BASE_URL}/api/generate",
             {
                 "model": QUERY_ROUTER_LLM_MODEL,
                 "prompt": final_prompt,
+                "keep_alive":0 ,
                 "stream": False,
                 "options": {
                     "temperature": 0.0,
@@ -46,6 +47,7 @@ def llm_router(query: str):
 
 
         result = parse_llm_json(data['response'])
+        # result = json.loads(data['response'])
         logger.info("Query intension find LLM inference completed")
         
         return result #.get("response", "").strip()
