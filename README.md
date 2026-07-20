@@ -23,7 +23,6 @@ The diagram below shows both production pipelines end-to-end, including the agen
 
 <img width="1520" alt="Assessly Query & Ingestion Pipeline Architecture" src="./assets/pipelines_overview_combined.png" />
 
-*(Diagram file included with this delivery — place it at `assets/pipelines_overview_combined.png` in the repo, or update the path above to wherever you host it.)*
 
 ---
 
@@ -96,7 +95,7 @@ The diagram below shows both production pipelines end-to-end, including the agen
 
 ---
 
-## 🧠 RAG Pipeline Architecture
+## 🧠 RAG Pipeline
 
 Assessly uses a production-oriented, **agentic** Retrieval-Augmented Generation pipeline designed for large enterprise-style documents.
 
@@ -339,8 +338,6 @@ Assessly prevents accidental data corruption:
 ### PDF Processing
 
 - Docling
-- Pillow
-- OpenCV
 
 ### Authentication
 
@@ -554,36 +551,6 @@ Assessly has a strong production-grade architecture direction and several produc
 - Backup and restore strategy
 - HTTPS reverse proxy and production secret management
 - Load testing for expected concurrent usage
-
----
-
-## 📁 Repository Structure
-
-```text
-backend/
-  app/
-    api/                 FastAPI routers
-    core/                config and shared clients
-    db/                  Postgres and Qdrant clients
-    models/              Pydantic and SQLAlchemy models
-    services/            auth, queues, metadata, RAG, retrieval, parsing
-    agents/              router (query-intention) agent, verify (RAGAS) agent
-    guardrails/          input guardrails, pre-generation guardrails
-    observability/       OpenTelemetry, Jaeger, Langfuse instrumentation
-    worker.py            ingestion worker
-    query_worker.py      query worker
-  alembic/               database migrations
-  Dockerfile
-  requirements.txt
-
-frontend/
-  src/app/features/      Angular UI components
-  Dockerfile
-  package.json
-
-docker-compose.yml       development infrastructure/workers
-docker-compose.prod.yml  production-style stack
-```
 
 ---
 
