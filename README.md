@@ -1,19 +1,29 @@
-# 🧠 Assessly AI — Enterprise RAG Knowledge Assistant
+# 🧠 Assessly AI — Enterprise Agentic RAG Knowledge Assistant
 
-Assessly AI is a production-oriented Retrieval-Augmented Generation (RAG) knowledge assistant that transforms PDFs into intelligent, searchable knowledge systems.
+Assessly AI is a production-oriented, **agentic** Retrieval-Augmented Generation (RAG) knowledge assistant that transforms PDFs into intelligent, searchable knowledge systems.
 
-Users can upload documents, process them through a scalable AI pipeline, and ask grounded, context-aware questions using semantic retrieval and LLM-powered reasoning.
+Users can upload documents, process them through a scalable AI pipeline, and ask grounded, context-aware questions using hybrid retrieval, query routing, and LLM-powered reasoning — with an automated verification agent checking every answer before it reaches the user.
 
-Built with a modern full-stack architecture, Assessly focuses not only on AI capabilities — but also on the real engineering challenges involved in building production-grade RAG systems.
+Built with a modern full-stack architecture, Assessly focuses not only on AI capabilities — but also on the real engineering challenges involved in building production-grade, observable, multi-agent RAG systems.
 
-🎥Demo Video: https://www.linkedin.com/feed/update/urn:li:activity:7453663316465422337/
+🎥 Demo Video: https://www.linkedin.com/feed/update/urn:li:activity:7453663316465422337/
 
----
+📈 **Result:** The agentic pipeline — query routing, hybrid retrieval, reranking, context compression, and RAGAS-based verification — improved grounded-answer accuracy by an estimated **~30–40%** over a naive single-pass RAG baseline.
+
+<!-- ---
 
 ## 🏗️ Architecture Overview
 
-<img width="1672" height="941" alt="Assessly" src="https://github.com/user-attachments/assets/fb4f1a06-04ee-4c9e-800b-e5417eb93247" />
+<img width="1672" height="941" alt="Assessly" src="https://github.com/user-attachments/assets/fb4f1a06-04ee-4c9e-800b-e5417eb93247" /> -->
+---
 
+## 🔄 Pipeline Architecture — Query + Ingestion
+
+The diagram below shows both production pipelines end-to-end, including the agent layer, guardrails, and the observability stack that instruments every stage.
+
+<img width="1520" alt="Assessly Query & Ingestion Pipeline Architecture" src="./assets/pipelines_overview_combined.png" />
+
+*(Diagram file included with this delivery — place it at `assets/pipelines_overview_combined.png` in the repo, or update the path above to wherever you host it.)*
 
 ---
 
@@ -22,24 +32,42 @@ Built with a modern full-stack architecture, Assessly focuses not only on AI cap
 ### 📄 Intelligent Document Processing
 
 - Upload and process PDF documents
-- Layout-aware document parsing
+- Layout-aware, hierarchical document parsing (Docling)
+- OCR support for scanned / image-heavy PDFs
 - Semantic + section-aware chunking
 - Parent-child chunk architecture
-- Duplicate document detection
+- Duplicate document detection (content hash based)
 - Safe re-ingestion flow
 
-### 🧠 Advanced RAG Pipeline
+### 🧠 Advanced Agentic RAG Pipeline
 
-- Context-aware question answering
-- Hybrid retrieval using dense + sparse search
-- Parent-context reconstruction
-- Metadata-aware retrieval
+- **Router Agent** (query-intention identification) — dynamically chooses a **RAG** or **No-RAG** path per query
+- **Query rewriting** (HyDE / multi-query expansion) on the RAG path
+- Hybrid retrieval using dense (BGE-M3) + sparse (BM25) search
+- **Reciprocal Rank Fusion (RRF)** + reranking
+- Parent-context reconstruction with **context compression**
+- Dynamic model routing based on query complexity
 - Grounded answer generation
 - User-isolated retrieval pipeline
 
+### 🛡️ Guardrails & Verification
+
+- **Input guardrails** — detect and block prompt-injection attempts before a query reaches retrieval
+- **Pre-generation guardrails** — enforce safety and grounding policies before generation
+- **Verify Agent (LLM-as-judge)** — evaluates every answer with **RAGAS** metrics (question, answer, full retrieved context) to check groundedness
+- Automatic **regeneration retries (≤2)** on failed verification
+- Graceful **caveated fallback** response after repeated verification failures
+
+### 📊 Observability & Evaluation
+
+- **OpenTelemetry** instrumentation across API and worker layers
+- **Jaeger** for distributed tracing
+- **Langfuse** for LLM/AI-specific observability (prompt/response inspection, latency, evaluation traces)
+- **RAGAS**-based automated answer evaluation baked directly into the query pipeline
+
 ### ⚡ Production-Oriented Architecture
 
-- Redis Streams job queues
+- Redis Streams job queues (ingestion + query)
 - Background ingestion workers
 - Background query workers
 - SSE live progress streaming
@@ -51,6 +79,7 @@ Built with a modern full-stack architecture, Assessly focuses not only on AI cap
 
 - JWT authentication
 - Refresh-token support
+- Role-based access control (RBAC) and multi-tenant isolation
 - Guest/demo mode
 - Per-user document isolation
 - Upload/query rate limiting
@@ -69,7 +98,7 @@ Built with a modern full-stack architecture, Assessly focuses not only on AI cap
 
 ## 🧠 RAG Pipeline Architecture
 
-Assessly uses a production-oriented Retrieval-Augmented Generation pipeline designed for large enterprise-style documents.
+Assessly uses a production-oriented, **agentic** Retrieval-Augmented Generation pipeline designed for large enterprise-style documents.
 
 ### ⚙️ Core Components
 
@@ -85,8 +114,8 @@ Assessly uses layout-aware parsing to preserve:
 
 Current parsing stack:
 
-- Docling
-- PDF structural extraction
+- Docling (text-based + OCR-based extraction)
+- PDF structural / hierarchical extraction
 - Metadata enrichment
 
 ---
@@ -134,31 +163,27 @@ Collections:
 
 ---
 
-#### 🔍 Retrieval Pipeline
+#### 🤖 Multi-Agent Orchestration
 
-```text
-User Query
-   ↓
-Dense Retrieval
-   ↓
-Sparse Retrieval
-   ↓
-Hybrid Fusion
-   ↓
-Parent Context Assembly
-   ↓
-Prompt Construction
-   ↓
-LLM Generation
-```
+Two agents sit around the core retrieval/generation flow:
 
-Features:
+**Router Agent (Query Intention Identification)**
+- Classifies each incoming query as needing retrieval (**RAG**) or not (**No-RAG**)
+- For the RAG path, rewrites the query (HyDE / multi-query expansion) before retrieval begins
 
-- Hybrid retrieval
-- User-filtered retrieval
-- Upload-session filtering
-- Parent context reconstruction
-- Metadata-aware search
+**Verify Agent (LLM-as-judge)**
+- Runs after generation, before the response is streamed to the user
+- Scores the answer with **RAGAS** metrics, using `{question, answer, full retrieved context}` as input
+- Checks groundedness/faithfulness of the generated answer against retrieved context
+- Triggers up to **2 regeneration attempts** if verification fails
+- Falls back to a clearly **caveated response** if the answer still fails verification after max retries
+
+---
+
+#### 🛡️ Guardrails
+
+- **Input guardrails** — screen incoming queries for prompt-injection patterns before they reach the router/retrieval layer
+- **Pre-generation guardrails** — a final safety/grounding check on the assembled context and prompt, immediately before LLM generation
 
 ---
 
@@ -178,6 +203,17 @@ The generation pipeline focuses on:
 - context-aware responses
 - reduced hallucinations
 - enterprise-style retrieval workflows
+- automated post-generation verification (RAGAS) before delivery
+
+---
+
+#### 📈 Observability
+
+Every stage of both pipelines is instrumented end-to-end:
+
+- **OpenTelemetry** — traces and signals emitted from the API layer and background workers
+- **Jaeger** — distributed trace visualization across the request/job lifecycle
+- **Langfuse** — LLM/AI-specific observability: prompt/response inspection, generation latency, and evaluation traces (including RAGAS scores)
 
 ---
 
@@ -210,6 +246,23 @@ Stores:
 - ingestion jobs
 - refresh tokens
 - audit events
+
+#### Multi-Agent Orchestration & Verification
+
+- Router agent for RAG / No-RAG query classification
+- Query rewriting on the RAG path
+- RAGAS-based Verify Agent (LLM-as-judge) with retry and graceful fallback
+
+#### Guardrails
+
+- Input guardrails (prompt-injection detection)
+- Pre-generation guardrails (safety / grounding checks)
+
+#### Observability
+
+- OpenTelemetry instrumentation
+- Jaeger distributed tracing
+- Langfuse LLM/AI observability
 
 #### Multi-User Isolation
 
@@ -268,6 +321,13 @@ Assessly prevents accidental data corruption:
 - Qdrant
 - FastEmbed
 - `bge-m3` embeddings
+- RAGAS (LLM-as-judge answer evaluation)
+
+### Observability
+
+- OpenTelemetry
+- Jaeger
+- Langfuse
 
 ### Infrastructure
 
@@ -287,52 +347,6 @@ Assessly prevents accidental data corruption:
 - JWT access tokens
 - Refresh-token cookies
 - Passlib/Bcrypt
-
----
-
-## 📄 Ingestion Flow
-
-```text
-PDF Upload
-   ↓
-Validation & Metadata Creation
-   ↓
-Redis Ingestion Queue
-   ↓
-Background Worker
-   ↓
-Document Parsing
-   ↓
-Chunk Creation
-   ↓
-Embedding Generation
-   ↓
-Qdrant Storage
-   ↓
-Job Completion + SSE Updates
-```
-
----
-
-## ❓ Query Flow
-
-```text
-User Question
-   ↓
-FastAPI Query API
-   ↓
-Redis Query Queue
-   ↓
-Query Worker
-   ↓
-Hybrid Retrieval
-   ↓
-Parent Context Assembly
-   ↓
-LLM Generation
-   ↓
-Streaming Result Updates
-```
 
 ---
 
@@ -491,8 +505,9 @@ ollama pull qwen2.5:7b
 2. Upload a PDF
 3. Watch ingestion progress live
 4. Ask questions against your knowledge base
-5. Receive grounded AI-generated answers
-6. View or delete your own knowledge-base files
+5. The router agent decides whether retrieval is needed, retrieves and verifies grounded context, and the verify agent checks the answer before it's streamed back
+6. Receive grounded, verified AI-generated answers
+7. View or delete your own knowledge-base files
 
 Guest mode:
 
@@ -511,7 +526,11 @@ Assessly has a strong production-grade architecture direction and several produc
 - Worker-based querying
 - Redis Streams architecture
 - PostgreSQL metadata persistence
-- Qdrant hybrid retrieval
+- Qdrant hybrid retrieval (dense + sparse, RRF fusion)
+- Multi-agent orchestration (query routing + RAGAS-based verification)
+- Input and pre-generation guardrails
+- OpenTelemetry + Jaeger distributed tracing
+- Langfuse LLM/AI observability
 - JWT authentication
 - Multi-user isolation
 - SSE streaming logs
@@ -527,7 +546,6 @@ Assessly has a strong production-grade architecture direction and several produc
 ### 🚧 Still In Progress
 
 - Full automated test coverage
-- Advanced monitoring and observability
 - Structured centralized logging
 - Production migration automation
 - Horizontal worker scaling
@@ -549,6 +567,9 @@ backend/
     db/                  Postgres and Qdrant clients
     models/              Pydantic and SQLAlchemy models
     services/            auth, queues, metadata, RAG, retrieval, parsing
+    agents/              router (query-intention) agent, verify (RAGAS) agent
+    guardrails/          input guardrails, pre-generation guardrails
+    observability/       OpenTelemetry, Jaeger, Langfuse instrumentation
     worker.py            ingestion worker
     query_worker.py      query worker
   alembic/               database migrations
@@ -572,11 +593,13 @@ Assessly aims to explore what production-grade AI knowledge systems should actua
 
 The focus is not only on LLM responses — but also on:
 
-- scalable retrieval architecture
+- scalable, agentic retrieval architecture
 - reliable ingestion systems
 - multi-user isolation
 - durable metadata
 - background worker orchestration
+- automated answer verification and guardrails
+- full-stack observability
 - enterprise-style RAG engineering
 
 The long-term goal is to evolve Assessly into a next-generation AI knowledge platform capable of handling real operational and enterprise documentation workflows.
@@ -585,7 +608,7 @@ The long-term goal is to evolve Assessly into a next-generation AI knowledge pla
 
 ## 👨‍💻 Author
 
-Imran Bahelim  
+Imran Bahelim
 Lead Fullstack + AI Engineer
 
 ---
