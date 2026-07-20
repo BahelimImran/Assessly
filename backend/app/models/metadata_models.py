@@ -131,3 +131,34 @@ class AuditEvent(Base):
     event_type: Mapped[str] = mapped_column(String(100), nullable=False)
     metadata_json: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, nullable=False)
+
+class Dataset(Base):
+    __tablename__ = "datasets"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_uuid)
+    # Later check for user_id implementation
+    username: Mapped[str] = mapped_column(
+        String(36), nullable=False
+    )
+
+    document_id: Mapped[str | None] = mapped_column(
+        String(36), ForeignKey("documents.id"), nullable=True
+    )
+
+    question: Mapped[str] = mapped_column(Text, nullable=False)
+
+    # IMPORTANT: store Qdrant point IDs here
+    ground_truth_chunk_ids: Mapped[dict] = mapped_column(JSON, nullable=False)
+
+    # optional
+    ground_truth_document_ids: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+
+    metadata_info: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utc_now, nullable=False
+    )
+
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utc_now, onupdate=utc_now, nullable=False
+    )

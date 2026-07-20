@@ -5,8 +5,8 @@ services:
       dockerfile: Dockerfile
     command: python -m app.worker
     environment:
-      QDRANT_URL: ${QDRANT_URL:-http://qdrant:6333}
-      REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
+      QDRANT_URL: ${QDRANT_URL:-http://localhost:6333}
+      REDIS_URL: ${REDIS_URL:-redis://localhost:6379/0}
       REDIS_HOST: ${REDIS_HOST:-redis}
       REDIS_PORT: ${REDIS_PORT:-6379}
       REDIS_DB: ${REDIS_DB:-0}
@@ -56,8 +56,8 @@ services:
       dockerfile: Dockerfile
     command: python -m app.query_worker
     environment:
-      QDRANT_URL: ${QDRANT_URL:-http://qdrant:6333}
-      REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
+      QDRANT_URL: ${QDRANT_URL:-http://localhost:6333}
+      REDIS_URL: ${REDIS_URL:-redis://localhost:6379/0}
       REDIS_HOST: ${REDIS_HOST:-redis}
       REDIS_PORT: ${REDIS_PORT:-6379}
       REDIS_DB: ${REDIS_DB:-0}
@@ -73,9 +73,12 @@ services:
       EMBED_MODEL: ${EMBED_MODEL:-bge-m3}
       LLM_PROVIDER: ${LLM_PROVIDER:-ollama}
       LLM_MODEL: ${LLM_MODEL:-qwen2.5:7b}
+      QUERY_ROUTER_LLM_MODEL: ${QUERY_ROUTER_LLM_MODEL:-llama3.2:3b}
+      ANSWER_VERIFICATION_LLM_MODEL: ${ANSWER_VERIFICATION_LLM_MODEL:-gemma3:4b}
       MODEL_REQUEST_RETRIES: ${MODEL_REQUEST_RETRIES:-2}
       MODEL_REQUEST_BACKOFF_SECONDS: ${MODEL_REQUEST_BACKOFF_SECONDS:-1.0}
       LLM_CONCURRENCY_LIMIT: ${LLM_CONCURRENCY_LIMIT:-3}
+      MAX_RETRIES: ${MAX_RETRIES:-2}
       LLM_CONCURRENCY_TTL_SECONDS: ${LLM_CONCURRENCY_TTL_SECONDS:-900}
       QUERY_JOB_TTL_SECONDS: ${QUERY_JOB_TTL_SECONDS:-86400}
       QUERY_STREAM_RECLAIM_IDLE_MS: ${QUERY_STREAM_RECLAIM_IDLE_MS:-3600000}
@@ -102,7 +105,7 @@ services:
       - redis_data:/data
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: [ "CMD", "redis-cli", "ping" ]
       interval: 30s
       timeout: 10s
       retries: 5
@@ -129,11 +132,20 @@ services:
       - postgres_data:/var/lib/postgresql/data
     restart: unless-stopped
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      test: [ "CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}" ]
       interval: 30s
       timeout: 10s
       retries: 5
       start_period: 10s
+
+  jaeger:
+    image: jaegertracing/all-in-one:1.57
+    ports:
+      - "16686:16686" # Jaeger UI
+      - "4317:4317" # OTLP gRPC receiver
+      - "4318:4318" # OTLP HTTP receiver
+    environment:
+      - COLLECTOR_OTLP_ENABLED=true
 
 volumes:
   redis_data:

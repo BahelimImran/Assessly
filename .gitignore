@@ -20,5 +20,7 @@ frontend/.vscode/
 
 #General
 .vscode
-.env
+.env*
+.env.development
+.env.production
 *.log
