@@ -53,6 +53,26 @@ def create_query_job_sync(
 async def create_query_job(**kwargs):
     create_query_job_sync(**kwargs)
 
+def serialize_for_redis(data: dict):
+    clean = {}
+
+    for k, v in data.items():
+        if v is None:
+            clean[k] = ""
+
+        elif isinstance(v, (dict, list)):
+            clean[k] = json.dumps(v)
+
+        elif isinstance(v, datetime):
+            clean[k] = v.isoformat()
+
+        elif isinstance(v, bool):
+            clean[k] = int(v)  # Redis safe
+
+        else:
+            clean[k] = v
+
+    return clean
 
 def update_query_job_sync(job_id: str, **kwargs):
     kwargs["updated_at"] = utc_now()
@@ -63,7 +83,11 @@ def update_query_job_sync(job_id: str, **kwargs):
     if "citations" in kwargs and not isinstance(kwargs["citations"], str):
         kwargs["citations"] = json.dumps(kwargs["citations"])
 
-    redis_client.hset(f"query_job:{job_id}", mapping=kwargs)
+    # redis_client.hset(f"query_job:{job_id}", mapping=kwargs)
+    redis_client.hset(
+    f"query_job:{job_id}",
+    mapping=serialize_for_redis(kwargs)
+    )
     redis_client.expire(f"query_job:{job_id}", QUERY_JOB_TTL_SECONDS)
 
 

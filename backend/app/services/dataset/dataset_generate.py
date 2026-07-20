@@ -5,50 +5,36 @@ from typing import Dict
 from app.core.config import *
 from app.services.model_client import ModelCallError, ModelCallTimeout, post_json_with_retry
 import re
+from app.services.dataset.dataset_service import create_dataset_entry
 
-
-# from app.services.rag_service import call_llm
 
 logger = logging.getLogger(__name__)
 
-def verify_answer(
-    answer: str,
-    context: str,
-    query: str
-) -> Dict:
+def generate_questions_for_chunk(parent_chunk):
     logger = logging.getLogger(__name__)
 
+    full_text = parent_chunk.payload["full_text"]
+
     prompt = f"""
-        You are a strict AI evaluator.
+    Generate exactly 3 realistic user questions from the given content.
 
-        Question:
-        {query}
+    Content:
+    {full_text}
 
-        Context:
-        {context}
-
-        Answer:
-        {answer}
-
-        Evaluate strictly:
-        1. Is the answer grounded in the context?
-        2. Any hallucinations or unsupported claims?
-        3. Is the answer complete?
-
-        Return ONLY JSON:
-        {{
-        "passed": true or false,
-        "score": 0.0 to 1.0,
-        "reason": "short explanation"
-        }}
-        """
+    Return JSON:
+    [
+      {{"question": "..."}},
+      {{"question": "..."}},
+      {{"question": "..."}}
+    ]
+    """
     try:
-        logger.info("Verify agent started")
+        logger.info("Dataset generation started")
         final_prompt = "" + prompt
         data = post_json_with_retry(
             f"{OLLAMA_BASE_URL}/api/generate",
             {
-                "model": ANSWER_VERIFICATION_LLM_MODEL,
+                "model": LLM_MODEL,
                 "prompt": final_prompt,
                 "stream": False,
                 "keep_alive":0 ,
@@ -63,11 +49,19 @@ def verify_answer(
         )
 
 
-        result = parse_llm_json(data['response'])
-        # result = json.loads(data['response'])
-        logger.info("Verify agent find LLM inference completed")
+        questions = parse_llm_json(data['response'])
+        logger.info("Dataset question find LLM inference completed")
+        # Task - Move data create to dataset.py and need to remove records of same document ingested again after successfull ingestion 
+        for q in questions:
+            create_dataset_entry(
+                username=parent_chunk.payload["user_id"],
+                question=q["question"],
+                ground_truth_chunk_ids=parent_chunk.payload["parent_id"],
+                document_id=parent_chunk.payload["document_id"],
+                metadata_info=parent_chunk.payload,
+            )
         
-        return result #.get("response", "").strip()
+        return questions 
         
     except ModelCallTimeout:
         return "The local AI model took too long to respond. Please try with a shorter question or smaller document context."

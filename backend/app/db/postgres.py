@@ -32,12 +32,13 @@ def init_db():
         RefreshToken,
         UploadSession,
         User,
+        Dataset,
     )
 
     Base.metadata.create_all(bind=engine)
 
 
-@contextmanager
+@contextmanager #[auth] Q1
 def session_scope():
     session = SessionLocal()
     try:
